@@ -168,8 +168,13 @@ type WebToolsConfig struct {
 	Perplexity PerplexityConfig `json:"perplexity"`
 }
 
+type CronToolsConfig struct {
+	ExecTimeoutMinutes int `json:"exec_timeout_minutes" env:"PICOCLAW_TOOLS_CRON_EXEC_TIMEOUT_MINUTES"` // 0 means no timeout
+}
+
 type ToolsConfig struct {
-	Web WebToolsConfig `json:"web"`
+	Web  WebToolsConfig  `json:"web"`
+	Cron CronToolsConfig `json:"cron"`
 }
 
 func DefaultConfig() *Config {
@@ -237,6 +242,9 @@ func DefaultConfig() *Config {
 					APIKey:     "",
 					MaxResults: 5,
 				},
+			},
+			Cron: CronToolsConfig{
+				ExecTimeoutMinutes: 5, // default 5 minutes for LLM operations
 			},
 		},
 		Heartbeat: HeartbeatConfig{
