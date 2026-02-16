@@ -70,10 +70,7 @@ pkg/
 ├── channels/
 │   ├── manager.go            # Channel manager (start/stop all channels)
 │   ├── base.go               # Base channel interface and utilities
-│   ├── telegram.go           # Telegram bot implementation
-│   ├── discord.go            # Discord bot implementation
-│   ├── slack.go              # Slack bot implementation
-│   └── [other channels]      # QQ, DingTalk, LINE, Feishu, MaixCam, WhatsApp, OneBot
+│   └── discord.go            # Discord bot implementation (only channel)
 ├── tools/
 │   ├── registry.go           # Tool registration and execution
 │   ├── base.go               # Tool interfaces (Tool, ContextualTool, AsyncTool)
@@ -87,7 +84,7 @@ pkg/
 │   └── [hardware]            # i2c.go, spi.go (Linux-only)
 ├── providers/
 │   ├── types.go              # LLMProvider interface, Message/ToolCall types
-│   └── [providers]           # claude_provider.go, openai_provider.go, etc.
+│   └── [providers]           # claude_provider.go, openai_provider.go, gemini_provider.go, zhipu_provider.go, groq_provider.go, vllm_provider.go, nvidia_provider.go, ollama_provider.go, codex_provider.go, openrouter_provider.go
 ├── config/
 │   └── config.go             # Configuration loading with environment variable support
 ├── session/
@@ -130,11 +127,12 @@ Config file location: `~/.picoclaw/config.json`
 
 Key configuration sections:
 - `agents.defaults`: Model, workspace, max_tokens, temperature, max_tool_iterations
-- `channels`: Telegram, Discord, Slack, etc. credentials and allow lists
-- `providers`: API keys for OpenRouter, Anthropic, OpenAI, Gemini, Zhipu, Groq, etc.
+- `channels`: Discord credentials and allow lists
+- `providers`: API keys for OpenRouter, Anthropic, OpenAI, Gemini, Zhipu, Groq, VLLM, Nvidia, Ollama, Codex
 - `tools.web`: Brave and DuckDuckGo search configuration
 - `heartbeat`: Periodic task interval (minutes)
 - `devices`: USB monitoring, hardware events
+- `gateway`: Host and port configuration for health check endpoints
 
 Environment variables override JSON config using the pattern `PICOCLAW_<SECTION>_<KEY>` (e.g., `PICOCLAW_AGENTS_DEFAULTS_MODEL`).
 
@@ -215,3 +213,4 @@ func (c *MyChannel) Stop() error { ... }
 - **Message deduplication**: The agent checks if the `message` tool already sent a response to avoid duplicate messages to users.
 - **Token estimation**: Uses rune count / 3 for CJK-aware estimation (more accurate than byte length).
 - **Platform-specific code**: Use build tags (e.g., `i2c_linux.go`, `i2c_other.go`) for platform-specific implementations.
+- **Health check endpoints**: The gateway exposes `/health` (liveness) and `/ready` (readiness) endpoints at `http://host:port/health` and `/ready` for container orchestration probes.
