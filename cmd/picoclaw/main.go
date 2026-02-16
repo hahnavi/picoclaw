@@ -599,22 +599,10 @@ func gatewayCmd() {
 	}
 
 	if transcriber != nil {
-		if telegramChannel, ok := channelManager.GetChannel("telegram"); ok {
-			if tc, ok := telegramChannel.(*channels.TelegramChannel); ok {
-				tc.SetTranscriber(transcriber)
-				logger.InfoC("voice", "Groq transcription attached to Telegram channel")
-			}
-		}
 		if discordChannel, ok := channelManager.GetChannel("discord"); ok {
 			if dc, ok := discordChannel.(*channels.DiscordChannel); ok {
 				dc.SetTranscriber(transcriber)
 				logger.InfoC("voice", "Groq transcription attached to Discord channel")
-			}
-		}
-		if slackChannel, ok := channelManager.GetChannel("slack"); ok {
-			if sc, ok := slackChannel.(*channels.SlackChannel); ok {
-				sc.SetTranscriber(transcriber)
-				logger.InfoC("voice", "Groq transcription attached to Slack channel")
 			}
 		}
 	}

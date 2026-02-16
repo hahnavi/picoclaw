@@ -201,14 +201,10 @@ func TestConvertConfig(t *testing.T) {
 	t.Run("channels mapping", func(t *testing.T) {
 		data := map[string]interface{}{
 			"channels": map[string]interface{}{
-				"telegram": map[string]interface{}{
-					"enabled":    true,
-					"token":      "tg-token-123",
-					"allow_from": []interface{}{"user1"},
-				},
 				"discord": map[string]interface{}{
-					"enabled": true,
-					"token":   "disc-token-456",
+					"enabled":    true,
+					"token":      "disc-token-456",
+					"allow_from": []interface{}{"user1"},
 				},
 			},
 		}
@@ -217,17 +213,14 @@ func TestConvertConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ConvertConfig: %v", err)
 		}
-		if !cfg.Channels.Telegram.Enabled {
-			t.Error("Telegram should be enabled")
-		}
-		if cfg.Channels.Telegram.Token != "tg-token-123" {
-			t.Errorf("Telegram.Token = %q, want %q", cfg.Channels.Telegram.Token, "tg-token-123")
-		}
-		if len(cfg.Channels.Telegram.AllowFrom) != 1 || cfg.Channels.Telegram.AllowFrom[0] != "user1" {
-			t.Errorf("Telegram.AllowFrom = %v, want [user1]", cfg.Channels.Telegram.AllowFrom)
-		}
 		if !cfg.Channels.Discord.Enabled {
 			t.Error("Discord should be enabled")
+		}
+		if cfg.Channels.Discord.Token != "disc-token-456" {
+			t.Errorf("Discord.Token = %q, want %q", cfg.Channels.Discord.Token, "disc-token-456")
+		}
+		if len(cfg.Channels.Discord.AllowFrom) != 1 || cfg.Channels.Discord.AllowFrom[0] != "user1" {
+			t.Errorf("Discord.AllowFrom = %v, want [user1]", cfg.Channels.Discord.AllowFrom)
 		}
 	})
 
@@ -335,30 +328,30 @@ func TestMergeConfig(t *testing.T) {
 	t.Run("merges enabled channels", func(t *testing.T) {
 		existing := config.DefaultConfig()
 		incoming := config.DefaultConfig()
-		incoming.Channels.Telegram.Enabled = true
-		incoming.Channels.Telegram.Token = "tg-token"
+		incoming.Channels.Discord.Enabled = true
+		incoming.Channels.Discord.Token = "disc-token"
 
 		result := MergeConfig(existing, incoming)
-		if !result.Channels.Telegram.Enabled {
-			t.Error("Telegram should be enabled after merge")
+		if !result.Channels.Discord.Enabled {
+			t.Error("Discord should be enabled after merge")
 		}
-		if result.Channels.Telegram.Token != "tg-token" {
-			t.Errorf("Telegram.Token = %q, want %q", result.Channels.Telegram.Token, "tg-token")
+		if result.Channels.Discord.Token != "disc-token" {
+			t.Errorf("Discord.Token = %q, want %q", result.Channels.Discord.Token, "disc-token")
 		}
 	})
 
 	t.Run("preserves existing enabled channels", func(t *testing.T) {
 		existing := config.DefaultConfig()
-		existing.Channels.Telegram.Enabled = true
-		existing.Channels.Telegram.Token = "existing-token"
+		existing.Channels.Discord.Enabled = true
+		existing.Channels.Discord.Token = "existing-token"
 
 		incoming := config.DefaultConfig()
-		incoming.Channels.Telegram.Enabled = true
-		incoming.Channels.Telegram.Token = "incoming-token"
+		incoming.Channels.Discord.Enabled = true
+		incoming.Channels.Discord.Token = "incoming-token"
 
 		result := MergeConfig(existing, incoming)
-		if result.Channels.Telegram.Token != "existing-token" {
-			t.Errorf("Telegram.Token should be preserved, got %q", result.Channels.Telegram.Token)
+		if result.Channels.Discord.Token != "existing-token" {
+			t.Errorf("Discord.Token should be preserved, got %q", result.Channels.Discord.Token)
 		}
 	})
 }
@@ -632,9 +625,9 @@ func TestRunFullMigration(t *testing.T) {
 			},
 		},
 		"channels": map[string]interface{}{
-			"telegram": map[string]interface{}{
+			"discord": map[string]interface{}{
 				"enabled": true,
-				"token":   "tg-migrate-test",
+				"token":   "disc-migrate-test",
 			},
 		},
 	}
@@ -688,11 +681,11 @@ func TestRunFullMigration(t *testing.T) {
 	if picoConfig.Providers.OpenRouter.APIKey != "sk-or-migrate-test" {
 		t.Errorf("OpenRouter.APIKey = %q, want %q", picoConfig.Providers.OpenRouter.APIKey, "sk-or-migrate-test")
 	}
-	if !picoConfig.Channels.Telegram.Enabled {
-		t.Error("Telegram should be enabled")
+	if !picoConfig.Channels.Discord.Enabled {
+		t.Error("Discord should be enabled")
 	}
-	if picoConfig.Channels.Telegram.Token != "tg-migrate-test" {
-		t.Errorf("Telegram.Token = %q, want %q", picoConfig.Channels.Telegram.Token, "tg-migrate-test")
+	if picoConfig.Channels.Discord.Token != "disc-migrate-test" {
+		t.Errorf("Discord.Token = %q, want %q", picoConfig.Channels.Discord.Token, "disc-migrate-test")
 	}
 
 	if result.FilesCopied < 3 {
