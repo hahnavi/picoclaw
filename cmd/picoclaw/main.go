@@ -358,7 +358,7 @@ func agentCmd() {
 }
 
 func interactiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
-	prompt := fmt.Sprintf("%s You: ", logo)
+	prompt := "👤 You: "
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:          prompt,
@@ -411,7 +411,7 @@ func interactiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
 func simpleInteractiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print(fmt.Sprintf("%s You: ", logo))
+		fmt.Print("👤 You: ")
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
