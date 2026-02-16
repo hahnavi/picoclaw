@@ -128,19 +128,120 @@ func (ms *MemoryStore) GetRecentDailyNotes(days int) string {
 	return result
 }
 
-// GetMemoryContext returns formatted memory context for the agent prompt.
+// getUserMemoryDir returns the user-specific memory directory.
+// If userID is empty, returns the base memory directory.
+func (ms *MemoryStore) getUserMemoryDir(userID string) string {
+	if userID == "" {
+		return ms.memoryDir
+	}
+	return filepath.Join(ms.memoryDir, "users", userID)
+}
+
+// getUserMemoryFile returns the user-specific long-term memory file path.
+// If userID is empty, returns the base memory file.
+func (ms *MemoryStore) getUserMemoryFile(userID string) string {
+	if userID == "" {
+		return ms.memoryFile
+	}
+	return filepath.Join(ms.getUserMemoryDir(userID), "MEMORY.md")
+}
+
+// getUserTodayFile returns the path to today's daily note file for a user.
+// Format: memory/users/<userID>/YYYYMM/YYYYMMDD.md
+// If userID is empty, returns the base today file.
+func (ms *MemoryStore) getUserTodayFile(userID string) string {
+	if userID == "" {
+		return ms.getTodayFile()
+	}
+	today := time.Now().Format("20060102") // YYYYMMDD
+	monthDir := today[:6]                  // YYYYMM
+	filePath := filepath.Join(ms.getUserMemoryDir(userID), monthDir, today+".md")
+	return filePath
+}
+
+// ReadUserLongTerm reads the long-term memory for a specific user.
+// If userID is empty, reads from the base memory file.
+// Returns empty string if the file doesn't exist.
+func (ms *MemoryStore) ReadUserLongTerm(userID string) string {
+	memoryFile := ms.getUserMemoryFile(userID)
+	if data, err := os.ReadFile(memoryFile); err == nil {
+		return string(data)
+	}
+	return ""
+}
+
+// WriteUserLongTerm writes content to the user's long-term memory file.
+// If userID is empty, writes to the base memory file.
+// Creates the user memory directory if it doesn't exist.
+func (ms *MemoryStore) WriteUserLongTerm(userID string, content string) error {
+	memoryFile := ms.getUserMemoryFile(userID)
+
+	// Ensure directory exists
+	if userID != "" {
+		userDir := ms.getUserMemoryDir(userID)
+		if err := os.MkdirAll(userDir, 0755); err != nil {
+			return err
+		}
+	}
+
+	return os.WriteFile(memoryFile, []byte(content), 0644)
+}
+
+// ReadUserToday reads today's daily note for a specific user.
+// If userID is empty, reads from the base today file.
+// Returns empty string if the file doesn't exist.
+func (ms *MemoryStore) ReadUserToday(userID string) string {
+	todayFile := ms.getUserTodayFile(userID)
+	if data, err := os.ReadFile(todayFile); err == nil {
+		return string(data)
+	}
+	return ""
+}
+
+// AppendUserToday appends content to the user's daily note.
+// If userID is empty, appends to the base today file.
+// If the file doesn't exist, it creates a new file with a date header.
+func (ms *MemoryStore) AppendUserToday(userID string, content string) error {
+	todayFile := ms.getUserTodayFile(userID)
+
+	// Ensure month directory exists
+	monthDir := filepath.Dir(todayFile)
+	if err := os.MkdirAll(monthDir, 0755); err != nil {
+		return err
+	}
+
+	var existingContent string
+	if data, err := os.ReadFile(todayFile); err == nil {
+		existingContent = string(data)
+	}
+
+	var newContent string
+	if existingContent == "" {
+		// Add header for new day
+		header := fmt.Sprintf("# %s\n\n", time.Now().Format("2006-01-02"))
+		newContent = header + content
+	} else {
+		// Append to existing content
+		newContent = existingContent + "\n" + content
+	}
+
+	return os.WriteFile(todayFile, []byte(newContent), 0644)
+}
+
+// GetUserMemoryContext returns formatted memory context for a specific user.
+// If userID is empty, returns the base memory context.
 // Includes long-term memory and recent daily notes.
-func (ms *MemoryStore) GetMemoryContext() string {
+func (ms *MemoryStore) GetUserMemoryContext(userID string) string {
 	var parts []string
 
 	// Long-term memory
-	longTerm := ms.ReadLongTerm()
+	longTerm := ms.ReadUserLongTerm(userID)
 	if longTerm != "" {
 		parts = append(parts, "## Long-term Memory\n\n"+longTerm)
 	}
 
 	// Recent daily notes (last 3 days)
-	recentNotes := ms.GetRecentDailyNotes(3)
+	recentNotes := ms.GetRecentDailyNotesForUser(userID, 3)
 	if recentNotes != "" {
 		parts = append(parts, "## Recent Daily Notes\n\n"+recentNotes)
 	}
@@ -158,4 +259,43 @@ func (ms *MemoryStore) GetMemoryContext() string {
 		result += part
 	}
 	return fmt.Sprintf("# Memory\n\n%s", result)
+}
+
+// GetRecentDailyNotesForUser returns daily notes from the last N days for a specific user.
+// If userID is empty, returns notes from the base directory.
+// Contents are joined with "---" separator.
+func (ms *MemoryStore) GetRecentDailyNotesForUser(userID string, days int) string {
+	var notes []string
+	baseDir := ms.getUserMemoryDir(userID)
+
+	for i := 0; i < days; i++ {
+		date := time.Now().AddDate(0, 0, -i)
+		dateStr := date.Format("20060102") // YYYYMMDD
+		monthDir := dateStr[:6]            // YYYYMM
+		filePath := filepath.Join(baseDir, monthDir, dateStr+".md")
+
+		if data, err := os.ReadFile(filePath); err == nil {
+			notes = append(notes, string(data))
+		}
+	}
+
+	if len(notes) == 0 {
+		return ""
+	}
+
+	// Join with separator
+	var result string
+	for i, note := range notes {
+		if i > 0 {
+			result += "\n\n---\n\n"
+		}
+		result += note
+	}
+	return result
+}
+
+// GetMemoryContext returns formatted memory context for the agent prompt.
+// Includes long-term memory and recent daily notes.
+func (ms *MemoryStore) GetMemoryContext() string {
+	return ms.GetUserMemoryContext("")
 }

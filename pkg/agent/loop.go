@@ -263,6 +263,15 @@ func (al *AgentLoop) processMessage(ctx context.Context, msg bus.InboundMessage)
 		return al.processSystemMessage(ctx, msg)
 	}
 
+	// Set user context for memory operations (enables per-user memory)
+	// The SenderID contains the Discord user ID or other user identifier
+	userID := msg.SenderID
+	if userID != "" {
+		al.contextBuilder.SetUserContext(userID)
+	}
+	// Clear user context after processing (for cleanup)
+	defer al.contextBuilder.ClearUserContext()
+
 	// Process as user message
 	return al.runAgentLoop(ctx, processOptions{
 		SessionKey:      msg.SessionKey,
@@ -340,6 +349,9 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, opts processOptions) (str
 			}
 		}
 	}
+
+	// Note: User context (for per-user memory) should be set by the caller
+	// (e.g., processMessage) before calling runAgentLoop, and cleared after.
 
 	// 1. Update tool contexts
 	al.updateToolContexts(opts.Channel, opts.ChatID)

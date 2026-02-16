@@ -19,6 +19,7 @@ type ContextBuilder struct {
 	skillsLoader *skills.SkillsLoader
 	memory       *MemoryStore
 	tools        *tools.ToolRegistry // Direct reference to tool registry
+	currentUserID string             // Current user ID for memory operations
 }
 
 func getGlobalConfigDir() string {
@@ -46,6 +47,23 @@ func NewContextBuilder(workspace string) *ContextBuilder {
 // SetToolsRegistry sets the tools registry for dynamic tool summary generation.
 func (cb *ContextBuilder) SetToolsRegistry(registry *tools.ToolRegistry) {
 	cb.tools = registry
+}
+
+// SetUserContext sets the current user ID for memory operations.
+// All subsequent memory operations will use this user's memory store.
+func (cb *ContextBuilder) SetUserContext(userID string) {
+	cb.currentUserID = userID
+}
+
+// ClearUserContext clears the current user ID, reverting to shared memory.
+func (cb *ContextBuilder) ClearUserContext() {
+	cb.currentUserID = ""
+}
+
+// getUserMemoryContext returns memory context for the current user.
+// If no user context is set, returns the shared memory context.
+func (cb *ContextBuilder) getUserMemoryContext() string {
+	return cb.memory.GetUserMemoryContext(cb.currentUserID)
 }
 
 func (cb *ContextBuilder) getBotName() string {
@@ -152,6 +170,14 @@ func (cb *ContextBuilder) getIdentity() string {
 		personalitySection = "\n\n## Personality\n\n" + strings.Join(personalityParts, "\n")
 	}
 
+	// Determine memory path based on user context
+	var memoryPathDisplay string
+	if cb.currentUserID != "" {
+		memoryPathDisplay = fmt.Sprintf("%s/memory/users/%s/MEMORY.md", workspacePath, cb.currentUserID)
+	} else {
+		memoryPathDisplay = fmt.Sprintf("%s/memory/MEMORY.md", workspacePath)
+	}
+
 	return fmt.Sprintf(`# %s %s
 
 You are %s, a helpful AI assistant.%s
@@ -164,7 +190,7 @@ You are %s, a helpful AI assistant.%s
 
 ## Workspace
 Your workspace is at: %s
-- Memory: %s/memory/MEMORY.md
+- Memory: %s
 - Daily Notes: %s/memory/YYYYMM/YYYYMMDD.md
 - Skills: %s/skills/{skill-name}/SKILL.md
 
@@ -176,9 +202,9 @@ Your workspace is at: %s
 
 2. **Be helpful and accurate** - When using tools, briefly explain what you're doing.
 
-3. **Memory** - When remembering something, write to %s/memory/MEMORY.md`,
+3. **Memory** - When remembering something, write to %s`,
 		botName, botEmoji, strings.ToLower(botName), personalitySection,
-		now, runtime, workspacePath, workspacePath, workspacePath, workspacePath, toolsSection, workspacePath)
+		now, runtime, workspacePath, memoryPathDisplay, workspacePath, workspacePath, toolsSection, memoryPathDisplay)
 }
 
 func (cb *ContextBuilder) buildToolsSection() string {
@@ -225,10 +251,10 @@ The following skills extend your capabilities. To use a skill, read its SKILL.md
 %s`, skillsSummary))
 	}
 
-	// Memory context
-	memoryContext := cb.memory.GetMemoryContext()
+	// Memory context (user-specific if user context is set)
+	memoryContext := cb.getUserMemoryContext()
 	if memoryContext != "" {
-		parts = append(parts, "# Memory\n\n"+memoryContext)
+		parts = append(parts, memoryContext)
 	}
 
 	// Join with "---" separator

@@ -8,6 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 make deps
 
+# Generate embedded files (processes //go:embed directives)
+make generate
+
 # Build for current platform (Linux/x86_64, Linux/arm64, Linux/riscv64, Darwin/arm64)
 make build
 
@@ -64,6 +67,10 @@ pkg/
 │   ├── loop.go               # Main agent loop, LLM iteration, tool execution
 │   ├── context.go            # System prompt builder, skill/memory loading
 │   └── memory.go             # Long-term memory store
+├── auth/
+│   ├── oauth.go              # OAuth authentication flows (for Codex, etc.)
+│   ├── pkce.go               # PKCE implementation for OAuth
+│   └── store.go              # Token storage and management
 ├── bus/
 │   ├── bus.go                # Message bus for inbound/outbound messages
 │   └── types.go              # Message types (InboundMessage, OutboundMessage)
@@ -71,9 +78,33 @@ pkg/
 │   ├── manager.go            # Channel manager (start/stop all channels)
 │   ├── base.go               # Base channel interface and utilities
 │   └── discord.go            # Discord bot implementation (only channel)
+├── config/
+│   └── config.go             # Configuration loading with environment variable support
+├── cron/
+│   └── service.go            # Scheduled job execution
+├── devices/
+│   ├── service.go            # Device monitoring service
+│   ├── events/               # Event source interfaces
+│   └── sources/              # Platform-specific event sources (USB on Linux)
+├── health/
+│   └── server.go             # Health check HTTP server (/health, /ready)
+├── heartbeat/
+│   └── service.go            # Periodic task execution (HEARTBEAT.md)
+├── logger/
+│   └── logger.go             # Structured JSON logging
+├── providers/
+│   ├── types.go              # LLMProvider interface, Message/ToolCall types
+│   └── [providers]           # http_provider.go (handles: openai, groq, openrouter, zhipu, vllm, gemini, nvidia, ollama, moonshot, shengsuanyun, deepseek), codex_provider.go, codex_cli_provider.go, github_copilot_provider.go
+├── session/
+│   └── manager.go            # Session history and summarization
+├── skills/
+│   └── loader.go             # Skill loading from workspace/global/builtin directories
+├── state/
+│   └── state.go              # Atomic state persistence
 ├── tools/
 │   ├── registry.go           # Tool registration and execution
 │   ├── base.go               # Tool interfaces (Tool, ContextualTool, AsyncTool)
+│   ├── toolloop.go           # Reusable LLM+tool iteration loop (used by main agent and subagents)
 │   ├── filesystem.go         # read_file, write_file, list_dir, edit_file, append_file
 │   ├── shell.go              # exec (command execution with sandboxing)
 │   ├── web.go                # web_search, web_fetch
@@ -82,21 +113,11 @@ pkg/
 │   ├── message.go            # message (send messages to channels)
 │   ├── cron.go               # cron tool for scheduling
 │   └── [hardware]            # i2c.go, spi.go (Linux-only)
-├── providers/
-│   ├── types.go              # LLMProvider interface, Message/ToolCall types
-│   └── [providers]           # http_provider.go (handles: openai, groq, openrouter, zhipu, vllm, gemini, nvidia, ollama, moonshot, shengsuanyun, deepseek), codex_provider.go, codex_cli_provider.go, github_copilot_provider.go
-├── config/
-│   └── config.go             # Configuration loading with environment variable support
-├── session/
-│   └── manager.go            # Session history and summarization
-├── skills/
-│   └── loader.go             # Skill loading from workspace/global/builtin directories
-├── heartbeat/
-│   └── service.go            # Periodic task execution (HEARTBEAT.md)
-├── cron/
-│   └── service.go            # Scheduled job execution
-└── state/
-    └── state.go              # Atomic state persistence
+├── utils/
+│   ├── media.go              # Media processing utilities
+│   └── string.go             # String manipulation utilities
+└── voice/
+    └── transcriber.go        # Groq Whisper transcription for Discord voice messages
 ```
 
 ### Message Flow
@@ -109,11 +130,15 @@ pkg/
 
 **Tool Registry**: All tools implement the `Tool` interface with `Name()`, `Description()`, `Parameters()`, and `Execute()`. Tools are registered in a `ToolRegistry` and converted to provider-compatible schemas.
 
+**ToolLoop**: The `pkg/tools/toolloop.go` contains `RunToolLoop()`, which is the core reusable agent logic that handles LLM iteration and tool execution. This function is used by both the main agent loop and subagents, ensuring consistent behavior across all agent instances.
+
 **Async Tools**: Tools can implement `AsyncTool` to return immediately and notify completion via callback. This is used for `spawn` (creates independent subagent) and long-running operations.
 
 **Contextual Tools**: Tools can implement `ContextualTool` to receive channel/chatID context, enabling the `message` tool to send responses to the correct destination.
 
 **Subagents**: The `spawn` tool creates async subagents with independent contexts; the `subagent` tool creates synchronous subagents. Both use the same provider and workspace but have separate tool registries (no spawn/subagent tools to prevent recursion).
+
+**Context Building**: The `ContextBuilder` in `pkg/agent/context.go` constructs the system prompt by loading components in order: IDENTITY.md → SOUL.md → AGENTS.md → USER.md → Skills (workspace > global > builtin) → USER.md (again) → Memory → Tools summary. This ensures proper layering of identity, behavior, and user preferences.
 
 **Skills**: Skills are markdown files (SKILL.md) in workspace skills directories. They provide additional instructions/context to the LLM. Skills load in priority: workspace > global (~/.picoclaw/skills) > builtin (./skills in repo).
 
@@ -213,4 +238,20 @@ func (c *MyChannel) Stop() error { ... }
 - **Message deduplication**: The agent checks if the `message` tool already sent a response to avoid duplicate messages to users.
 - **Token estimation**: Uses rune count / 3 for CJK-aware estimation (more accurate than byte length).
 - **Platform-specific code**: Use build tags (e.g., `i2c_linux.go`, `i2c_other.go`) for platform-specific implementations.
-- **Health check endpoints**: The gateway exposes `/health` (liveness) and `/ready` (readiness) endpoints at `http://host:port/health` and `/ready` for container orchestration probes.
+- **Health check endpoints**: The gateway exposes `/health` (liveness) and `/ready` (readiness) endpoints at `http://host:port/health` and `/ready` for container orchestration probes. Configure host and port via `gateway.host` and `gateway.port` in config.
+- **Voice transcription**: Discord voice messages are automatically transcribed using Groq's Whisper API when Groq is configured. The transcription happens in the Discord channel before the text is sent to the agent.
+- **Device monitoring**: On Linux, the devices service can monitor USB hotplug events when `devices.monitor_usb` is enabled in config. Events are published to the message bus and can trigger agent actions.
+- **Structured logging**: The logger package outputs structured JSON logs with configurable log levels (DEBUG, INFO, WARN, ERROR, FATAL). All logs include timestamp, level, component, and optional fields.
+- **AGENTS.md symlink**: The root `AGENTS.md` is symlinked to `CLAUDE.md`, which means agent behavior guidance is loaded from the same file that guides Claude Code development.
+
+## Embedded Workspace
+
+The binary contains embedded default workspace files via Go's `//go:embed` directive in `cmd/picoclaw/main.go`:
+
+```go
+//go:generate cp -r ../../workspace .
+//go:embed workspace
+var embeddedFiles embed.FS
+```
+
+When the binary first runs, it extracts these embedded files to the user's workspace directory (`~/.picoclaw/workspace`). This ensures every installation has the default AGENTS.md, IDENTITY.md, SOUL.md, and other essential configuration files. The `make generate` command processes the `//go:generate` directive to copy the workspace files before building.
