@@ -155,7 +155,6 @@ func resolveCodexModel(model string) (string, string) {
 	unsupportedPrefixes := []string{
 		"glm",
 		"claude",
-		"anthropic",
 		"gemini",
 		"google",
 		"moonshot",

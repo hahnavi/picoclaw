@@ -77,9 +77,6 @@ func TestDefaultConfig_Providers(t *testing.T) {
 	cfg := DefaultConfig()
 
 	// Verify all providers are empty by default
-	if cfg.Providers.Anthropic.APIKey != "" {
-		t.Error("Anthropic API key should be empty by default")
-	}
 	if cfg.Providers.OpenAI.APIKey != "" {
 		t.Error("OpenAI API key should be empty by default")
 	}

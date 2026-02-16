@@ -84,7 +84,7 @@ pkg/
 │   └── [hardware]            # i2c.go, spi.go (Linux-only)
 ├── providers/
 │   ├── types.go              # LLMProvider interface, Message/ToolCall types
-│   └── [providers]           # claude_provider.go, openai_provider.go, gemini_provider.go, zhipu_provider.go, groq_provider.go, vllm_provider.go, nvidia_provider.go, ollama_provider.go, codex_provider.go, openrouter_provider.go
+│   └── [providers]           # http_provider.go (handles: openai, groq, openrouter, zhipu, vllm, gemini, nvidia, ollama, moonshot, shengsuanyun, deepseek), codex_provider.go, codex_cli_provider.go, github_copilot_provider.go
 ├── config/
 │   └── config.go             # Configuration loading with environment variable support
 ├── session/
@@ -128,7 +128,7 @@ Config file location: `~/.picoclaw/config.json`
 Key configuration sections:
 - `agents.defaults`: Model, workspace, max_tokens, temperature, max_tool_iterations
 - `channels`: Discord credentials and allow lists
-- `providers`: API keys for OpenRouter, Anthropic, OpenAI, Gemini, Zhipu, Groq, VLLM, Nvidia, Ollama, Codex
+- `providers`: API keys for OpenRouter, OpenAI, Gemini, Zhipu, Groq, VLLM, Nvidia, Ollama, Moonshot, ShengSuanYun, DeepSeek, GitHub Copilot, Codex
 - `tools.web`: Brave and DuckDuckGo search configuration
 - `heartbeat`: Periodic task interval (minutes)
 - `devices`: USB monitoring, hardware events

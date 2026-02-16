@@ -17,10 +17,6 @@
     }
   },
   "providers": {
-    "anthropic": {
-      "api_key": "",
-      "api_base": ""
-    },
     "openai": {
       "api_key": "",
       "api_base": ""
@@ -57,12 +53,30 @@
     "ollama": {
       "api_key": "",
       "api_base": "http://localhost:11434/v1"
+    },
+    "shengsuanyun": {
+      "api_key": "",
+      "api_base": ""
+    },
+    "deepseek": {
+      "api_key": "",
+      "api_base": ""
+    },
+    "github_copilot": {
+      "api_key": "",
+      "api_base": "",
+      "connect_mode": "stdio"
     }
   },
   "tools": {
     "web": {
-      "search": {
+      "brave": {
+        "enabled": false,
         "api_key": "YOUR_BRAVE_API_KEY",
+        "max_results": 5
+      },
+      "duckduckgo": {
+        "enabled": true,
         "max_results": 5
       }
     }

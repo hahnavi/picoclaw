@@ -33,8 +33,6 @@ func LoginPasteToken(provider string, r io.Reader) (*AuthCredential, error) {
 
 func providerDisplayName(provider string) string {
 	switch provider {
-	case "anthropic":
-		return "console.anthropic.com"
 	case "openai":
 		return "platform.openai.com"
 	default:

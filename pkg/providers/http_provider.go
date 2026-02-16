@@ -197,17 +197,6 @@ func (p *HTTPProvider) GetDefaultModel() string {
 	return ""
 }
 
-func createClaudeAuthProvider() (LLMProvider, error) {
-	cred, err := auth.GetCredential("anthropic")
-	if err != nil {
-		return nil, fmt.Errorf("loading auth credentials: %w", err)
-	}
-	if cred == nil {
-		return nil, fmt.Errorf("no credentials for anthropic. Run: picoclaw auth login --provider anthropic")
-	}
-	return NewClaudeProviderWithTokenSource(cred.AccessToken, createClaudeTokenSource()), nil
-}
-
 func createCodexAuthProvider() (LLMProvider, error) {
 	cred, err := auth.GetCredential("openai")
 	if err != nil {
@@ -252,17 +241,6 @@ func CreateProvider(cfg *config.Config) (LLMProvider, error) {
 					apiBase = "https://api.openai.com/v1"
 				}
 			}
-		case "anthropic", "claude":
-			if cfg.Providers.Anthropic.APIKey != "" || cfg.Providers.Anthropic.AuthMethod != "" {
-				if cfg.Providers.Anthropic.AuthMethod == "oauth" || cfg.Providers.Anthropic.AuthMethod == "token" {
-					return createClaudeAuthProvider()
-				}
-				apiKey = cfg.Providers.Anthropic.APIKey
-				apiBase = cfg.Providers.Anthropic.APIBase
-				if apiBase == "" {
-					apiBase = "https://api.anthropic.com/v1"
-				}
-			}
 		case "openrouter":
 			if cfg.Providers.OpenRouter.APIKey != "" {
 				apiKey = cfg.Providers.OpenRouter.APIKey
@@ -301,12 +279,6 @@ func CreateProvider(cfg *config.Config) (LLMProvider, error) {
 					apiBase = "https://router.shengsuanyun.com/api/v1"
 				}
 			}
-		case "claude-cli", "claudecode", "claude-code":
-			workspace := cfg.WorkspacePath()
-			if workspace == "" {
-				workspace = "."
-			}
-			return NewClaudeCliProvider(workspace), nil
 		case "codex-cli", "codex-code":
 			workspace := cfg.WorkspacePath()
 			if workspace == "" {
@@ -347,24 +319,13 @@ func CreateProvider(cfg *config.Config) (LLMProvider, error) {
 				apiBase = "https://api.moonshot.cn/v1"
 			}
 
-		case strings.HasPrefix(model, "openrouter/") || strings.HasPrefix(model, "anthropic/") || strings.HasPrefix(model, "openai/") || strings.HasPrefix(model, "meta-llama/") || strings.HasPrefix(model, "deepseek/") || strings.HasPrefix(model, "google/"):
+		case strings.HasPrefix(model, "openrouter/") || strings.HasPrefix(model, "openai/") || strings.HasPrefix(model, "meta-llama/") || strings.HasPrefix(model, "deepseek/") || strings.HasPrefix(model, "google/"):
 			apiKey = cfg.Providers.OpenRouter.APIKey
 			proxy = cfg.Providers.OpenRouter.Proxy
 			if cfg.Providers.OpenRouter.APIBase != "" {
 				apiBase = cfg.Providers.OpenRouter.APIBase
 			} else {
 				apiBase = "https://openrouter.ai/api/v1"
-			}
-
-		case (strings.Contains(lowerModel, "claude") || strings.HasPrefix(model, "anthropic/")) && (cfg.Providers.Anthropic.APIKey != "" || cfg.Providers.Anthropic.AuthMethod != ""):
-			if cfg.Providers.Anthropic.AuthMethod == "oauth" || cfg.Providers.Anthropic.AuthMethod == "token" {
-				return createClaudeAuthProvider()
-			}
-			apiKey = cfg.Providers.Anthropic.APIKey
-			apiBase = cfg.Providers.Anthropic.APIBase
-			proxy = cfg.Providers.Anthropic.Proxy
-			if apiBase == "" {
-				apiBase = "https://api.anthropic.com/v1"
 			}
 
 		case (strings.Contains(lowerModel, "gpt") || strings.HasPrefix(model, "openai/")) && (cfg.Providers.OpenAI.APIKey != "" || cfg.Providers.OpenAI.AuthMethod != ""):

@@ -222,7 +222,7 @@ picoclaw onboard
 
 **3. Get API Keys**
 
-* **LLM Provider**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) · [Anthropic](https://console.anthropic.com) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com/api-keys)
+* **LLM Provider**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com/api-keys)
 * **Web Search** (optional): [Brave Search](https://brave.com/search/api) - Free tier available (2000 requests/month)
 
 > **Note**: See `config.example.json` for a complete configuration template.
@@ -503,7 +503,7 @@ The subagent has access to tools (message, web_search, etc.) and can communicate
 | `ollama` | Local model inference (self-hosted) | [ollama.com](https://ollama.com) |
 | `nvidia` | NVIDIA AI cloud | [developer.nvidia.com](https://developer.nvidia.com) |
 | `codex-cli` | GitHub Copilot CLI integration | [github.com/features/copilot](https://github.com/features/copilot) |
-| `claude-cli` | Claude Code CLI | [claude.ai/code](https://claude.ai/code) |
+| `github_copilot` | GitHub Copilot integration | [github.com/features/copilot](https://github.com/features/copilot) |
 | `deepseek` | DeepSeek reasoning models | [platform.deepseek.com](https://platform.deepseek.com) |
 | `moonshot` | Kimi models | [moonshot.cn](https://moonshot.cn) |
 | `shengsuanyun` | Chinese AI provider | [shengsuanyun.com](https://shengsuanyun.com) |
@@ -511,7 +511,6 @@ The subagent has access to tools (message, web_search, etc.) and can communicate
 | `gemini` | Gemini direct | [aistudio.google.com](https://aistudio.google.com) |
 | `zhipu` | Zhipu GLM models | [bigmodel.cn](https://bigmodel.cn) |
 | `openrouter` | Multi-model hub | [openrouter.ai](https://openrouter.ai) |
-| `anthropic` | Claude direct | [console.anthropic.com](https://console.anthropic.com) |
 | `openai` | GPT models | [platform.openai.com](https://platform.openai.com) |
 | `groq` | Fast inference + Whisper | [console.groq.com](https://console.groq.com) |
 
@@ -559,7 +558,7 @@ picoclaw agent -m "Hello"
 {
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-opus-4-5"
+      "model": "openrouter/anthropic/claude-opus-4-5"
     }
   },
   "providers": {
@@ -568,6 +567,19 @@ picoclaw agent -m "Hello"
     },
     "groq": {
       "api_key": "gsk_xxx"
+    },
+    "shengsuanyun": {
+      "api_key": "YOUR_SHENGSUANYUN_API_KEY",
+      "api_base": ""
+    },
+    "deepseek": {
+      "api_key": "YOUR_DEEPSEEK_API_KEY",
+      "api_base": ""
+    },
+    "github_copilot": {
+      "api_key": "",
+      "api_base": "",
+      "connect_mode": "stdio"
     }
   },
   "channels": {

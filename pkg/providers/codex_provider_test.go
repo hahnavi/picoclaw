@@ -421,7 +421,7 @@ func TestResolveCodexModel(t *testing.T) {
 		wantFallback bool
 	}{
 		{name: "empty", input: "", wantModel: codexDefaultModel, wantFallback: true},
-		{name: "unsupported namespace", input: "anthropic/claude-3.5", wantModel: codexDefaultModel, wantFallback: true},
+		{name: "unsupported namespace", input: "claude/claude-3.5", wantModel: codexDefaultModel, wantFallback: true},
 		{name: "non-openai prefixed", input: "glm-4.7", wantModel: codexDefaultModel, wantFallback: true},
 		{name: "openai prefix", input: "openai/gpt-5.2", wantModel: "gpt-5.2", wantFallback: false},
 		{name: "direct gpt", input: "gpt-4o", wantModel: "gpt-4o", wantFallback: false},

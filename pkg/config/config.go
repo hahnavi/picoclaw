@@ -89,7 +89,6 @@ type DevicesConfig struct {
 }
 
 type ProvidersConfig struct {
-	Anthropic     ProviderConfig `json:"anthropic"`
 	OpenAI        ProviderConfig `json:"openai"`
 	OpenRouter    ProviderConfig `json:"openrouter"`
 	Groq          ProviderConfig `json:"groq"`
@@ -158,7 +157,6 @@ func DefaultConfig() *Config {
 			},
 		},
 		Providers: ProvidersConfig{
-			Anthropic:    ProviderConfig{},
 			OpenAI:       ProviderConfig{},
 			OpenRouter:   ProviderConfig{},
 			Groq:         ProviderConfig{},
@@ -247,9 +245,6 @@ func (c *Config) GetAPIKey() string {
 	defer c.mu.RUnlock()
 	if c.Providers.OpenRouter.APIKey != "" {
 		return c.Providers.OpenRouter.APIKey
-	}
-	if c.Providers.Anthropic.APIKey != "" {
-		return c.Providers.Anthropic.APIKey
 	}
 	if c.Providers.OpenAI.APIKey != "" {
 		return c.Providers.OpenAI.APIKey

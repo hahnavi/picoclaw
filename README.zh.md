@@ -225,7 +225,7 @@ picoclaw onboard
 
 **3. 获取 API Key**
 
-* **LLM 提供商**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) · [Anthropic](https://console.anthropic.com) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com/api-keys)
+* **LLM 提供商**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com/api-keys)
 * **网络搜索** (可选): [Brave Search](https://brave.com/search/api) - 提供免费层级 (2000 请求/月)
 
 > **注意**: 完整的配置模板请参考 `config.example.json`。
@@ -529,7 +529,6 @@ Agent 读取 HEARTBEAT.md
 | `gemini` | LLM (Gemini 直连) | [aistudio.google.com](https://aistudio.google.com) |
 | `zhipu` | LLM (智谱直连) | [bigmodel.cn](bigmodel.cn) |
 | `openrouter(待测试)` | LLM (推荐，可访问所有模型) | [openrouter.ai](https://openrouter.ai) |
-| `anthropic(待测试)` | LLM (Claude 直连) | [console.anthropic.com](https://console.anthropic.com) |
 | `openai(待测试)` | LLM (GPT 直连) | [platform.openai.com](https://platform.openai.com) |
 | `deepseek(待测试)` | LLM (DeepSeek 直连) | [platform.deepseek.com](https://platform.deepseek.com) |
 | `groq` | LLM + **语音转录** (Whisper) | [console.groq.com](https://console.groq.com) |
@@ -580,7 +579,7 @@ picoclaw agent -m "你好"
 {
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-opus-4-5"
+      "model": "openrouter/anthropic/claude-opus-4-5"
     }
   },
   "providers": {

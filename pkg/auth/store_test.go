@@ -120,13 +120,13 @@ func TestStoreMultiProvider(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	openaiCred := &AuthCredential{AccessToken: "openai-token", Provider: "openai", AuthMethod: "oauth"}
-	anthropicCred := &AuthCredential{AccessToken: "anthropic-token", Provider: "anthropic", AuthMethod: "token"}
+	geminiCred := &AuthCredential{AccessToken: "gemini-token", Provider: "gemini", AuthMethod: "token"}
 
 	if err := SetCredential("openai", openaiCred); err != nil {
 		t.Fatalf("SetCredential(openai) error: %v", err)
 	}
-	if err := SetCredential("anthropic", anthropicCred); err != nil {
-		t.Fatalf("SetCredential(anthropic) error: %v", err)
+	if err := SetCredential("gemini", geminiCred); err != nil {
+		t.Fatalf("SetCredential(gemini) error: %v", err)
 	}
 
 	loaded, err := GetCredential("openai")
@@ -137,12 +137,12 @@ func TestStoreMultiProvider(t *testing.T) {
 		t.Errorf("openai token = %q, want %q", loaded.AccessToken, "openai-token")
 	}
 
-	loaded, err = GetCredential("anthropic")
+	loaded, err = GetCredential("gemini")
 	if err != nil {
-		t.Fatalf("GetCredential(anthropic) error: %v", err)
+		t.Fatalf("GetCredential(gemini) error: %v", err)
 	}
-	if loaded.AccessToken != "anthropic-token" {
-		t.Errorf("anthropic token = %q, want %q", loaded.AccessToken, "anthropic-token")
+	if loaded.AccessToken != "gemini-token" {
+		t.Errorf("gemini token = %q, want %q", loaded.AccessToken, "gemini-token")
 	}
 }
 

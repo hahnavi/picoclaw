@@ -5,6 +5,29 @@ import (
 	"strings"
 )
 
+// findMatchingBrace finds the closing brace that matches the opening brace at start.
+// It returns the index after the closing brace, or start if no match is found.
+func findMatchingBrace(text string, start int) int {
+	if start >= len(text) || text[start] != '{' {
+		return start
+	}
+
+	depth := 0
+	for i := start; i < len(text); i++ {
+		switch text[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+
+	return start
+}
+
 // extractToolCallsFromText parses tool call JSON from response text.
 // Both ClaudeCliProvider and CodexCliProvider use this to extract
 // tool calls that the model outputs in its response text.

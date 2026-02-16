@@ -198,7 +198,7 @@ func main() {
 }
 
 func printHelp() {
-	fmt.Printf("%s picoclaw - Personal AI Assistant v%s\n\n", logo, version)
+	fmt.Printf("%s picoclaw - Personal AI Assistant %s\n\n", logo, version)
 	fmt.Println("Usage: picoclaw <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
@@ -633,7 +633,6 @@ func statusCmd() {
 		fmt.Printf("Model: %s\n", cfg.Agents.Defaults.Model)
 
 		hasOpenRouter := cfg.Providers.OpenRouter.APIKey != ""
-		hasAnthropic := cfg.Providers.Anthropic.APIKey != ""
 		hasOpenAI := cfg.Providers.OpenAI.APIKey != ""
 		hasGemini := cfg.Providers.Gemini.APIKey != ""
 		hasZhipu := cfg.Providers.Zhipu.APIKey != ""
@@ -647,7 +646,6 @@ func statusCmd() {
 			return "not set"
 		}
 		fmt.Println("OpenRouter API:", status(hasOpenRouter))
-		fmt.Println("Anthropic API:", status(hasAnthropic))
 		fmt.Println("OpenAI API:", status(hasOpenAI))
 		fmt.Println("Gemini API:", status(hasGemini))
 		fmt.Println("Zhipu API:", status(hasZhipu))
@@ -700,13 +698,12 @@ func authHelp() {
 	fmt.Println("  status      Show current auth status")
 	fmt.Println()
 	fmt.Println("Login options:")
-	fmt.Println("  --provider <name>    Provider to login with (openai, anthropic)")
+	fmt.Println("  --provider <name>    Provider to login with (openai)")
 	fmt.Println("  --device-code        Use device code flow (for headless environments)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  picoclaw auth login --provider openai")
 	fmt.Println("  picoclaw auth login --provider openai --device-code")
-	fmt.Println("  picoclaw auth login --provider anthropic")
 	fmt.Println("  picoclaw auth logout --provider openai")
 	fmt.Println("  picoclaw auth status")
 }
@@ -730,18 +727,16 @@ func authLoginCmd() {
 
 	if provider == "" {
 		fmt.Println("Error: --provider is required")
-		fmt.Println("Supported providers: openai, anthropic")
+		fmt.Println("Supported providers: openai")
 		return
 	}
 
 	switch provider {
 	case "openai":
 		authLoginOpenAI(useDeviceCode)
-	case "anthropic":
-		authLoginPasteToken(provider)
 	default:
 		fmt.Printf("Unsupported provider: %s\n", provider)
-		fmt.Println("Supported providers: openai, anthropic")
+		fmt.Println("Supported providers: openai")
 	}
 }
 
@@ -796,8 +791,6 @@ func authLoginPasteToken(provider string) {
 	appCfg, err := loadConfig()
 	if err == nil {
 		switch provider {
-		case "anthropic":
-			appCfg.Providers.Anthropic.AuthMethod = "token"
 		case "openai":
 			appCfg.Providers.OpenAI.AuthMethod = "token"
 		}
@@ -834,8 +827,6 @@ func authLogoutCmd() {
 			switch provider {
 			case "openai":
 				appCfg.Providers.OpenAI.AuthMethod = ""
-			case "anthropic":
-				appCfg.Providers.Anthropic.AuthMethod = ""
 			}
 			config.SaveConfig(getConfigPath(), appCfg)
 		}
@@ -850,7 +841,6 @@ func authLogoutCmd() {
 		appCfg, err := loadConfig()
 		if err == nil {
 			appCfg.Providers.OpenAI.AuthMethod = ""
-			appCfg.Providers.Anthropic.AuthMethod = ""
 			config.SaveConfig(getConfigPath(), appCfg)
 		}
 

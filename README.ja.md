@@ -206,7 +206,7 @@ picoclaw onboard
 
 **3. API キーの取得**
 
-- **LLM プロバイダー**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) · [Anthropic](https://console.anthropic.com) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com/api-keys)
+- **LLM プロバイダー**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com/api-keys)
 - **Web 検索**（任意）: [Brave Search](https://brave.com/search/api) - 無料枠あり（月 2000 リクエスト）
 
 > **注意**: 完全な設定テンプレートは `config.example.json` を参照してください。
@@ -658,7 +658,7 @@ HEARTBEAT_OK 応答         ユーザーが直接結果を受け取る
 {
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-opus-4-5"
+      "model": "openrouter/anthropic/claude-opus-4-5"
     }
   },
   "providers": {
