@@ -1004,7 +1004,7 @@ func (al *AgentLoop) summarizeSession(sessionKey string) {
 			continue
 		}
 		// Estimate tokens for this message
-		msgTokens := len(m.Content) / 2
+		msgTokens := len(m.Content) / 2 // Use safer estimate here too (2.5 -> 2 for integer division safety)
 		if msgTokens > maxMessageTokens {
 			omitted = true
 			continue
