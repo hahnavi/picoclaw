@@ -278,11 +278,11 @@ func (c *DiscordChannel) sendChunk(ctx context.Context, channelID, content, repl
 			// Send as a reply using message reference
 			failIfNotExists := false
 			msgRef := discordgo.MessageReference{
-				MessageID: replyTo,
+				MessageID:       replyTo,
 				FailIfNotExists: &failIfNotExists, // Don't fail if the original message was deleted
 			}
 			_, err = c.session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-				Content: content,
+				Content:   content,
 				Reference: &msgRef,
 			})
 		} else {
