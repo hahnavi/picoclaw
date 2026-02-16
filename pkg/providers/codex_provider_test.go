@@ -29,6 +29,9 @@ func TestBuildCodexParams_BasicMessage(t *testing.T) {
 	if params.Instructions.Or("") != defaultCodexInstructions {
 		t.Errorf("Instructions = %q, want %q", params.Instructions.Or(""), defaultCodexInstructions)
 	}
+	if params.MaxOutputTokens.Valid() {
+		t.Fatalf("MaxOutputTokens should not be set for Codex backend")
+	}
 }
 
 func TestBuildCodexParams_SystemAsInstructions(t *testing.T) {
@@ -253,6 +256,10 @@ func TestCodexProvider_ChatRoundTrip(t *testing.T) {
 			http.Error(w, "stream must be true", http.StatusBadRequest)
 			return
 		}
+		if _, ok := reqBody["max_output_tokens"]; ok {
+			http.Error(w, "max_output_tokens is not supported", http.StatusBadRequest)
+			return
+		}
 
 		resp := map[string]interface{}{
 			"id":     "resp_test",
@@ -330,6 +337,10 @@ func TestCodexProvider_ChatRoundTrip_TokenSourceFallbackAccountID(t *testing.T) 
 		}
 		if _, ok := reqBody["temperature"]; ok {
 			http.Error(w, "temperature is not supported", http.StatusBadRequest)
+			return
+		}
+		if _, ok := reqBody["max_output_tokens"]; ok {
+			http.Error(w, "max_output_tokens is not supported", http.StatusBadRequest)
 			return
 		}
 		if reqBody["stream"] != true {
