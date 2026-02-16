@@ -48,6 +48,81 @@ func (cb *ContextBuilder) SetToolsRegistry(registry *tools.ToolRegistry) {
 	cb.tools = registry
 }
 
+func (cb *ContextBuilder) getBotName() string {
+	identityPath := filepath.Join(cb.workspace, "IDENTITY.md")
+	data, err := os.ReadFile(identityPath)
+	if err != nil {
+		return "" // No fallback - triggers onboarding
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Find "## Name" section
+	for i, line := range lines {
+		if strings.Contains(line, "## Name") && i+1 < len(lines) {
+			nameLine := strings.TrimSpace(lines[i+1])
+			// Parse "BotName 🎭" format - extract first word
+			parts := strings.Fields(nameLine)
+			if len(parts) > 0 {
+				return parts[0]
+			}
+		}
+	}
+
+	return "" // No fallback - triggers onboarding
+}
+
+// getIdentityField extracts a specific section value from IDENTITY.md
+func (cb *ContextBuilder) getIdentityField(sectionName string) string {
+	identityPath := filepath.Join(cb.workspace, "IDENTITY.md")
+	data, err := os.ReadFile(identityPath)
+	if err != nil {
+		return ""
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Find the section (e.g., "## Creature", "## Vibe")
+	for i, line := range lines {
+		if strings.Contains(line, "## "+sectionName) && i+1 < len(lines) {
+			value := strings.TrimSpace(lines[i+1])
+			// Skip empty values or placeholder lines
+			if value != "" && !strings.HasPrefix(value, "_(") && !strings.HasPrefix(value, "_(workspace") {
+				return value
+			}
+		}
+	}
+
+	return ""
+}
+
+func (cb *ContextBuilder) getBotEmoji() string {
+	identityPath := filepath.Join(cb.workspace, "IDENTITY.md")
+	data, err := os.ReadFile(identityPath)
+	if err != nil {
+		return "🤖" // Default emoji for onboarding
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Find "## Name" section
+	for i, line := range lines {
+		if strings.Contains(line, "## Name") && i+1 < len(lines) {
+			nameLine := strings.TrimSpace(lines[i+1])
+			// Extract emoji (everything after the name)
+			parts := strings.Fields(nameLine)
+			if len(parts) > 1 {
+				return strings.TrimPrefix(nameLine, parts[0]+" ")
+			}
+		}
+	}
+
+	return "🤖" // Default emoji for onboarding
+}
+
 func (cb *ContextBuilder) getIdentity() string {
 	now := time.Now().Format("2006-01-02 15:04 (Monday)")
 	workspacePath, _ := filepath.Abs(filepath.Join(cb.workspace))
@@ -56,9 +131,30 @@ func (cb *ContextBuilder) getIdentity() string {
 	// Build tools section dynamically
 	toolsSection := cb.buildToolsSection()
 
-	return fmt.Sprintf(`# picoclaw 🦞
+	// Read bot name and emoji dynamically
+	botName := cb.getBotName()
+	botEmoji := cb.getBotEmoji()
 
-You are picoclaw, a helpful AI assistant.
+	// Read personality fields
+	creature := cb.getIdentityField("Creature")
+	vibe := cb.getIdentityField("Vibe")
+
+	// Build personality description
+	var personalityParts []string
+	if creature != "" {
+		personalityParts = append(personalityParts, fmt.Sprintf("**Creature:** %s", creature))
+	}
+	if vibe != "" {
+		personalityParts = append(personalityParts, fmt.Sprintf("**Vibe:** %s", vibe))
+	}
+	personalitySection := ""
+	if len(personalityParts) > 0 {
+		personalitySection = "\n\n## Personality\n\n" + strings.Join(personalityParts, "\n")
+	}
+
+	return fmt.Sprintf(`# %s %s
+
+You are %s, a helpful AI assistant.%s
 
 ## Current Time
 %s
@@ -81,6 +177,7 @@ Your workspace is at: %s
 2. **Be helpful and accurate** - When using tools, briefly explain what you're doing.
 
 3. **Memory** - When remembering something, write to %s/memory/MEMORY.md`,
+		botName, botEmoji, strings.ToLower(botName), personalitySection,
 		now, runtime, workspacePath, workspacePath, workspacePath, workspacePath, toolsSection, workspacePath)
 }
 
