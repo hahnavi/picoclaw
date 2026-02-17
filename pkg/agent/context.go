@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/providers"
 	"github.com/sipeed/picoclaw/pkg/skills"
@@ -23,20 +24,12 @@ type ContextBuilder struct {
 	bootstrapConfig BootstrapConfig    // Bootstrap truncation config
 }
 
-func getGlobalConfigDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".picoclaw")
-}
-
 func NewContextBuilder(workspace string) *ContextBuilder {
 	// builtin skills: skills directory in current project
 	// Use the skills/ directory under the current working directory
 	wd, _ := os.Getwd()
 	builtinSkillsDir := filepath.Join(wd, "skills")
-	globalSkillsDir := filepath.Join(getGlobalConfigDir(), "skills")
+	globalSkillsDir := config.GetGlobalSkillsPath()
 
 	return &ContextBuilder{
 		workspace:    workspace,

@@ -155,10 +155,10 @@ func main() {
 
 		workspace := cfg.WorkspacePath()
 		installer := skills.NewSkillInstaller(workspace)
-		// 获取全局配置目录和内置 skills 目录
-		globalDir := filepath.Dir(getConfigPath())
-		globalSkillsDir := filepath.Join(globalDir, "skills")
-		builtinSkillsDir := filepath.Join(globalDir, "picoclaw", "skills")
+		// Get global config directory and builtin skills directory
+		stateDir := config.GetStateDir()
+		globalSkillsDir := config.GetGlobalSkillsPath()
+		builtinSkillsDir := config.GetBuiltinSkillsPath(stateDir)
 		skillsLoader := skills.NewSkillsLoader(workspace, globalSkillsDir, builtinSkillsDir)
 
 		switch subcommand {
@@ -213,7 +213,7 @@ func printHelp() {
 }
 
 func onboard() {
-	configPath := getConfigPath()
+	configPath := config.GetConfigPath()
 
 	if _, err := os.Stat(configPath); err == nil {
 		fmt.Printf("Config already exists at %s\n", configPath)
@@ -609,7 +609,7 @@ func statusCmd() {
 		return
 	}
 
-	configPath := getConfigPath()
+	configPath := config.GetConfigPath()
 
 	fmt.Printf("%s picoclaw Status\n", logo)
 	fmt.Printf("Version: %s\n", formatVersion())
@@ -768,7 +768,7 @@ func authLoginOpenAI(useDeviceCode bool) {
 	appCfg, err := loadConfig()
 	if err == nil {
 		appCfg.Providers.OpenAI.AuthMethod = "oauth"
-		if err := config.SaveConfig(getConfigPath(), appCfg); err != nil {
+		if err := config.SaveConfig(config.GetConfigPath(), appCfg); err != nil {
 			fmt.Printf("Warning: could not update config: %v\n", err)
 		}
 	}
@@ -797,7 +797,7 @@ func authLoginPasteToken(provider string) {
 		case "openai":
 			appCfg.Providers.OpenAI.AuthMethod = "token"
 		}
-		if err := config.SaveConfig(getConfigPath(), appCfg); err != nil {
+		if err := config.SaveConfig(config.GetConfigPath(), appCfg); err != nil {
 			fmt.Printf("Warning: could not update config: %v\n", err)
 		}
 	}
@@ -831,7 +831,7 @@ func authLogoutCmd() {
 			case "openai":
 				appCfg.Providers.OpenAI.AuthMethod = ""
 			}
-			config.SaveConfig(getConfigPath(), appCfg)
+			config.SaveConfig(config.GetConfigPath(), appCfg)
 		}
 
 		fmt.Printf("Logged out from %s\n", provider)
@@ -844,7 +844,7 @@ func authLogoutCmd() {
 		appCfg, err := loadConfig()
 		if err == nil {
 			appCfg.Providers.OpenAI.AuthMethod = ""
-			config.SaveConfig(getConfigPath(), appCfg)
+			config.SaveConfig(config.GetConfigPath(), appCfg)
 		}
 
 		fmt.Println("Logged out from all providers")
@@ -886,11 +886,6 @@ func authStatusCmd() {
 	}
 }
 
-func getConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".picoclaw", "config.json")
-}
-
 func setupCronTool(agentLoop *agent.AgentLoop, msgBus *bus.MessageBus, workspace string, execTimeout time.Duration) *cron.CronService {
 	cronStorePath := filepath.Join(workspace, "cron", "jobs.json")
 
@@ -911,7 +906,7 @@ func setupCronTool(agentLoop *agent.AgentLoop, msgBus *bus.MessageBus, workspace
 }
 
 func loadConfig() (*config.Config, error) {
-	return config.LoadConfig(getConfigPath())
+	return config.LoadConfig(config.GetConfigPath())
 }
 
 func cronCmd() {
@@ -1233,12 +1228,8 @@ func skillsInstallBuiltinCmd(workspace string) {
 }
 
 func skillsListBuiltinCmd() {
-	cfg, err := loadConfig()
-	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
-		return
-	}
-	builtinSkillsDir := filepath.Join(filepath.Dir(cfg.WorkspacePath()), "picoclaw", "skills")
+	stateDir := config.GetStateDir()
+	builtinSkillsDir := config.GetBuiltinSkillsPath(stateDir)
 
 	fmt.Println("\nAvailable Builtin Skills:")
 	fmt.Println("-----------------------")
