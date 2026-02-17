@@ -118,6 +118,10 @@ pkg/
 │   ├── message.go            # message (send messages to channels)
 │   ├── cron.go               # cron tool for scheduling
 │   └── [hardware]            # i2c.go, spi.go (Linux-only)
+├── reload/
+│   ├── watcher.go            # File watching with fsnotify for hot reload
+│   ├── manager.go            # Reload orchestration for config/skills/bootstrap
+│   └── signals.go            # SIGHUP signal handling for manual reload
 ├── utils/
 │   ├── media.go              # Media processing utilities
 │   └── string.go             # String manipulation utilities
@@ -145,6 +149,14 @@ pkg/
 
 **Context Building**: The `ContextBuilder` in `pkg/agent/context.go` constructs the system prompt by loading components in order: IDENTITY.md → SOUL.md → AGENTS.md → USER.md → Skills (workspace > global > builtin) → USER.md (again) → Memory → Tools summary. This ensures proper layering of identity, behavior, and user preferences.
 
+**Hot Reload Architecture**: The reload package provides dynamic configuration updates:
+- **File watcher** (`pkg/reload/watcher.go`): Uses fsnotify to watch config, bootstrap files (IDENTITY.md, SOUL.md, AGENTS.md, USER.md), and skills directories with 300ms debouncing
+- **Reload manager** (`pkg/reload/manager.go`): Orchestrates safe updates to agent loop, context builder, and tool registry
+- **Signal handler** (`pkg/reload/signals.go`): Catches SIGHUP for manual reload trigger
+- **Agent reload methods**: `UpdateModel()`, `UpdateContextWindow()`, `UpdateBootstrapConfig()`, `UpdatePruningConfig()`, `ReloadTools()`, `InvalidateBootstrapCache()`, `ReloadSkillsSummary()`
+- **Context cache**: `ContextBuilder` has bootstrap cache with `InvalidateBootstrapCache()` and `ReloadSkillsSummary()` methods
+- **Config comparison**: `Config.CompareHotReloadable()` detects changed fields for selective reloading
+
 **Skills**: Skills are markdown files (SKILL.md) in workspace skills directories. They provide additional instructions/context to the LLM. Skills load in priority: workspace > global (~/.picoclaw/skills) > builtin (./skills in repo).
 
 **Session Management**: Conversations are stored in `workspace/sessions/`. History is automatically summarized when exceeding 75% of context window or 20 messages.
@@ -156,6 +168,14 @@ pkg/
 - **Tool truncation**: Large tool results are truncated with head/tail preservation to prevent context overflow
 
 **Security Sandbox**: When `restrict_to_workspace` is true, file/command tools are restricted to the workspace directory. The `exec` tool additionally blocks dangerous commands (rm -rf, format, dd, shutdown, fork bombs).
+
+**Hot Reload** (gateway mode only): PicoClaw supports hot reload of configuration, skills, and bootstrap files without restart:
+- **Config reload**: Changes to `~/.picoclaw/config.json` automatically reload model, max_tokens, temperature, tool configs
+- **Skills reload**: Adding/removing skills from `workspace/skills/` is detected automatically
+- **Bootstrap reload**: Changes to IDENTITY.md, SOUL.md, AGENTS.md, USER.md invalidate the bootstrap cache
+- **SIGHUP support**: Send `kill -HUP <pid>` to manually trigger a config reload
+- **Debouncing**: 300ms debounce prevents duplicate reload events
+- **Implementation**: Uses `fsnotify` for file watching; reload manager handles safe component updates
 
 ## Configuration
 

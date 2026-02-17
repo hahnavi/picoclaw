@@ -361,3 +361,87 @@ func expandHome(path string) string {
 	}
 	return path
 }
+
+// CompareHotReloadable checks which hot-reloadable fields changed between two configs.
+// Returns a slice of field names that changed.
+func (c *Config) CompareHotReloadable(other *Config) []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var changed []string
+
+	// Compare model
+	if c.Agents.Defaults.Model != other.Agents.Defaults.Model {
+		changed = append(changed, "model")
+	}
+
+	// Compare max_tokens
+	if c.Agents.Defaults.MaxTokens != other.Agents.Defaults.MaxTokens {
+		changed = append(changed, "max_tokens")
+	}
+
+	// Compare temperature
+	if c.Agents.Defaults.Temperature != other.Agents.Defaults.Temperature {
+		changed = append(changed, "temperature")
+	}
+
+	// Compare bootstrap config
+	if c.Agents.Defaults.BootstrapMaxChars != other.Agents.Defaults.BootstrapMaxChars {
+		changed = append(changed, "bootstrap_max_chars")
+	}
+	if c.Agents.Defaults.BootstrapTotalMaxChars != other.Agents.Defaults.BootstrapTotalMaxChars {
+		changed = append(changed, "bootstrap_total_max_chars")
+	}
+
+	// Compare context pruning config
+	if c.Agents.Defaults.ContextPruning.Mode != other.Agents.Defaults.ContextPruning.Mode {
+		changed = append(changed, "context_pruning")
+	}
+	if c.Agents.Defaults.ContextPruning.TTLMinutes != other.Agents.Defaults.ContextPruning.TTLMinutes {
+		changed = append(changed, "context_pruning")
+	}
+	if c.Agents.Defaults.ContextPruning.KeepLastAssistants != other.Agents.Defaults.ContextPruning.KeepLastAssistants {
+		changed = append(changed, "context_pruning")
+	}
+	if c.Agents.Defaults.ContextPruning.SoftTrimRatio != other.Agents.Defaults.ContextPruning.SoftTrimRatio {
+		changed = append(changed, "context_pruning")
+	}
+	if c.Agents.Defaults.ContextPruning.HardClearRatio != other.Agents.Defaults.ContextPruning.HardClearRatio {
+		changed = append(changed, "context_pruning")
+	}
+	if c.Agents.Defaults.ContextPruning.MinPrunableToolChars != other.Agents.Defaults.ContextPruning.MinPrunableToolChars {
+		changed = append(changed, "context_pruning")
+	}
+
+	// Compare tools config (web search providers)
+	webChanged := false
+	if c.Tools.Web.Brave.Enabled != other.Tools.Web.Brave.Enabled {
+		webChanged = true
+	}
+	if c.Tools.Web.Brave.APIKey != other.Tools.Web.Brave.APIKey {
+		webChanged = true
+	}
+	if c.Tools.Web.Brave.MaxResults != other.Tools.Web.Brave.MaxResults {
+		webChanged = true
+	}
+	if c.Tools.Web.DuckDuckGo.Enabled != other.Tools.Web.DuckDuckGo.Enabled {
+		webChanged = true
+	}
+	if c.Tools.Web.DuckDuckGo.MaxResults != other.Tools.Web.DuckDuckGo.MaxResults {
+		webChanged = true
+	}
+	if c.Tools.Web.Perplexity.Enabled != other.Tools.Web.Perplexity.Enabled {
+		webChanged = true
+	}
+	if c.Tools.Web.Perplexity.APIKey != other.Tools.Web.Perplexity.APIKey {
+		webChanged = true
+	}
+	if c.Tools.Web.Perplexity.MaxResults != other.Tools.Web.Perplexity.MaxResults {
+		webChanged = true
+	}
+	if webChanged {
+		changed = append(changed, "tools.web")
+	}
+
+	return changed
+}

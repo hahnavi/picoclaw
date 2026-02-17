@@ -46,6 +46,7 @@ type AgentLoop struct {
 	channelManager *channels.Manager
 	bootstrapConfig BootstrapConfig // Bootstrap truncation config
 	pruningConfig    PruningConfig    // Context pruning config
+	mu               sync.RWMutex     // Protects reload operations
 }
 
 // processOptions configures how a message is processed
@@ -1155,4 +1156,121 @@ func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) 
 	}
 
 	return "", false
+}
+
+// ========== Hot Reload Support ==========
+
+// UpdateModel changes the LLM model dynamically.
+func (al *AgentLoop) UpdateModel(model string) error {
+	if model == "" {
+		return fmt.Errorf("model cannot be empty")
+	}
+	al.model = model
+	logger.InfoCF("agent", "Model updated", map[string]interface{}{"model": model})
+	return nil
+}
+
+// UpdateContextWindow changes the max tokens dynamically.
+func (al *AgentLoop) UpdateContextWindow(maxTokens int) error {
+	if maxTokens <= 0 {
+		return fmt.Errorf("max_tokens must be positive")
+	}
+	al.contextWindow = maxTokens
+	logger.InfoCF("agent", "Context window updated", map[string]interface{}{"max_tokens": maxTokens})
+	return nil
+}
+
+// UpdateBootstrapConfig updates the bootstrap truncation configuration.
+func (al *AgentLoop) UpdateBootstrapConfig(config BootstrapConfig) error {
+	if config.MaxChars <= 0 {
+		config.MaxChars = DEFAULT_BOOTSTRAP_MAX_CHARS
+	}
+	if config.TotalMaxChars <= 0 {
+		config.TotalMaxChars = DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS
+	}
+	al.bootstrapConfig = config
+	al.contextBuilder.SetBootstrapConfig(config)
+	al.contextBuilder.InvalidateBootstrapCache()
+	logger.InfoCF("agent", "Bootstrap config updated", map[string]interface{}{
+		"max_chars":       config.MaxChars,
+		"total_max_chars": config.TotalMaxChars,
+	})
+	return nil
+}
+
+// UpdatePruningConfig updates the context pruning configuration.
+func (al *AgentLoop) UpdatePruningConfig(config PruningConfig) error {
+	al.pruningConfig = config
+	logger.InfoCF("agent", "Pruning config updated", map[string]interface{}{
+		"mode":                  config.Mode,
+		"ttl_minutes":           config.TTL.Minutes(),
+		"keep_last_assistants":  config.KeepLastAssistants,
+		"soft_trim_ratio":       config.SoftTrimRatio,
+		"hard_clear_ratio":      config.HardClearRatio,
+		"min_prunable_tool_chars": config.MinPrunableToolChars,
+	})
+	return nil
+}
+
+// ReloadTools reinitializes tools with new config.
+func (al *AgentLoop) ReloadTools(cfg *config.Config) error {
+	al.mu.Lock()
+	defer al.mu.Unlock()
+
+	restrict := cfg.Agents.Defaults.RestrictToWorkspace
+
+	// Create new tool registry with updated config
+	newTools := createToolRegistry(al.workspace, restrict, cfg, al.bus)
+
+	// Get channel manager for message tool callback
+	if al.channelManager != nil {
+		// Update message tool callback
+		if tool, ok := newTools.Get("message"); ok {
+			if mt, ok := tool.(tools.ContextualTool); ok {
+				// Callback already set in createToolRegistry
+				_ = mt
+			}
+		}
+	}
+
+	// Create subagent manager with new tools
+	subagentManager := tools.NewSubagentManager(al.provider, cfg.Agents.Defaults.Model, al.workspace, al.bus)
+	subagentTools := createToolRegistry(al.workspace, restrict, cfg, al.bus)
+	subagentManager.SetTools(subagentTools)
+
+	// Register spawn tool (for main agent)
+	spawnTool := tools.NewSpawnTool(subagentManager)
+	newTools.Register(spawnTool)
+
+	// Register subagent tool (synchronous execution)
+	subagentTool := tools.NewSubagentTool(subagentManager)
+	newTools.Register(subagentTool)
+
+	// Replace the old tool registry
+	al.tools = newTools
+	al.contextBuilder.SetToolsRegistry(newTools)
+
+	logger.InfoCF("agent", "Tools reloaded", map[string]interface{}{
+		"tools_count": len(newTools.List()),
+	})
+
+	return nil
+}
+
+// InvalidateBootstrapCache clears bootstrap file cache in context builder.
+func (al *AgentLoop) InvalidateBootstrapCache() {
+	al.contextBuilder.InvalidateBootstrapCache()
+	logger.InfoC("agent", "Bootstrap cache invalidated")
+}
+
+// ReloadSkillsSummary rebuilds skills summary in context builder.
+func (al *AgentLoop) ReloadSkillsSummary() error {
+	al.contextBuilder.ReloadSkillsSummary()
+	logger.InfoC("agent", "Skills summary reloaded")
+	return nil
+}
+
+// GetSkillsInfo returns information about loaded skills.
+func (al *AgentLoop) GetSkillsInfo() map[string]interface{} {
+	return al.contextBuilder.GetSkillsInfo()
 }

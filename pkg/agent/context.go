@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sipeed/picoclaw/pkg/config"
@@ -16,12 +17,14 @@ import (
 )
 
 type ContextBuilder struct {
-	workspace       string
-	skillsLoader    *skills.SkillsLoader
-	memory          *MemoryStore
-	tools           *tools.ToolRegistry // Direct reference to tool registry
-	currentUserID   string             // Current user ID for memory operations
-	bootstrapConfig BootstrapConfig    // Bootstrap truncation config
+	workspace         string
+	skillsLoader      *skills.SkillsLoader
+	memory            *MemoryStore
+	tools             *tools.ToolRegistry // Direct reference to tool registry
+	currentUserID     string              // Current user ID for memory operations
+	bootstrapConfig   BootstrapConfig     // Bootstrap truncation config
+	bootstrapCache    map[string]string   // Cache for bootstrap file contents
+	cacheMu           sync.RWMutex        // Protects bootstrap cache
 }
 
 func NewContextBuilder(workspace string) *ContextBuilder {
@@ -32,9 +35,10 @@ func NewContextBuilder(workspace string) *ContextBuilder {
 	globalSkillsDir := config.GetGlobalSkillsPath()
 
 	return &ContextBuilder{
-		workspace:    workspace,
-		skillsLoader: skills.NewSkillsLoader(workspace, globalSkillsDir, builtinSkillsDir),
-		memory:       NewMemoryStore(workspace),
+		workspace:       workspace,
+		skillsLoader:    skills.NewSkillsLoader(workspace, globalSkillsDir, builtinSkillsDir),
+		memory:          NewMemoryStore(workspace),
+		bootstrapCache:  make(map[string]string),
 	}
 }
 
@@ -374,4 +378,36 @@ func (cb *ContextBuilder) GetSkillsInfo() map[string]interface{} {
 		"available": len(allSkills),
 		"names":     skillNames,
 	}
+}
+
+// ========== Hot Reload Support ==========
+
+// InvalidateBootstrapCache clears cached bootstrap files.
+// This forces the next BuildSystemPrompt call to reload bootstrap files from disk.
+func (cb *ContextBuilder) InvalidateBootstrapCache() {
+	cb.cacheMu.Lock()
+	defer cb.cacheMu.Unlock()
+
+	// Clear the cache
+	cb.bootstrapCache = make(map[string]string)
+
+	logger.DebugC("agent", "Bootstrap cache invalidated")
+}
+
+// ReloadSkillsSummary rebuilds the skills summary by clearing the skills loader cache.
+// The next BuildSystemPrompt call will reload the skills list.
+func (cb *ContextBuilder) ReloadSkillsSummary() error {
+	// Rebuild skills loader by creating a new one
+	wd, _ := os.Getwd()
+	builtinSkillsDir := filepath.Join(wd, "skills")
+	globalSkillsDir := config.GetGlobalSkillsPath()
+
+	cb.skillsLoader = skills.NewSkillsLoader(cb.workspace, globalSkillsDir, builtinSkillsDir)
+
+	logger.InfoCF("agent", "Skills summary reloaded",
+		map[string]interface{}{
+			"workspace": cb.workspace,
+		})
+
+	return nil
 }

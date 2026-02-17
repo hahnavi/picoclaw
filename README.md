@@ -636,6 +636,18 @@ PicoClaw supports scheduled reminders and recurring tasks through the `cron` too
 
 Jobs are stored in `~/.picoclaw/workspace/cron/` and processed automatically.
 
+## 🔄 Hot Reload
+
+When running in gateway mode (`picoclaw gateway`), PicoClaw automatically reloads changes without restart:
+
+- **Config**: Edit `~/.picoclaw/config.json` to change model, tokens, or tool settings
+- **Skills**: Add/remove skills in `workspace/skills/` — available immediately
+- **Bootstrap**: Modify `IDENTITY.md`, `SOUL.md`, `AGENTS.md`, `USER.md` to update agent behavior
+
+Or trigger manually: `kill -HUP <pid>`
+
+> Only available in gateway mode. Agent mode exits after each request.
+
 ## 🤝 Contribute & Roadmap
 
 PRs welcome! The codebase is intentionally small and readable. 🤗

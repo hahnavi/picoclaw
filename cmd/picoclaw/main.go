@@ -33,6 +33,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/heartbeat"
 	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/providers"
+	"github.com/sipeed/picoclaw/pkg/reload"
 	"github.com/sipeed/picoclaw/pkg/skills"
 	"github.com/sipeed/picoclaw/pkg/state"
 	"github.com/sipeed/picoclaw/pkg/tools"
@@ -551,6 +552,54 @@ func gatewayCmd() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// ========== Hot Reload Setup ==========
+	// Initialize reload manager
+	configPath := config.GetConfigPath()
+	reloadManager := reload.NewReloadManager(agentLoop, cfg, configPath)
+	reloadManager.SetMessageBus(msgBus)
+
+	// Start file watcher
+	var fileWatcher *reload.FileWatcher
+	watcher, err := reload.NewFileWatcher(reload.WatcherConfig{
+		ConfigPath:     configPath,
+		WorkspacePath:  cfg.WorkspacePath(),
+		WatchSkills:    true,
+		WatchBootstrap: true,
+	}, 300*time.Millisecond)
+	if err != nil {
+		fmt.Printf("Warning: file watcher disabled: %v\n", err)
+	} else {
+		fileWatcher = watcher
+		go fileWatcher.Start(ctx)
+
+		// Handle reload events
+		go func() {
+			for event := range fileWatcher.Events() {
+				result := reloadManager.HandleEvent(ctx, event)
+				if result.Success {
+					logger.InfoC("reload", fmt.Sprintf("Reloaded %s: %s", result.Component, result.Message))
+				} else {
+					logger.ErrorC("reload", fmt.Sprintf("Reload failed: %s", result.Error))
+				}
+			}
+		}()
+	}
+
+	// Setup SIGHUP handler for manual reload
+	var signalHandler *reload.SignalHandler
+	signalHandler = reload.SetupSignalHandler(func() {
+		logger.InfoC("reload", "SIGHUP received, triggering reload")
+		result := reloadManager.HandleEvent(ctx, reload.WatchEvent{
+			Type:      reload.WatchEventConfig,
+			Path:      configPath,
+			Timestamp: time.Now(),
+		})
+		if !result.Success {
+			logger.ErrorC("reload", fmt.Sprintf("Manual reload failed: %v", result.Error))
+		}
+	})
+	// ========== End Hot Reload Setup ==========
+
 	if err := cronService.Start(); err != nil {
 		fmt.Printf("Error starting cron service: %v\n", err)
 	}
@@ -593,6 +642,15 @@ func gatewayCmd() {
 
 	fmt.Println("\nShutting down...")
 	cancel()
+
+	// Stop reload components
+	if signalHandler != nil {
+		signalHandler.Stop()
+	}
+	if fileWatcher != nil {
+		fileWatcher.Close()
+	}
+
 	healthServer.Stop(context.Background())
 	deviceService.Stop()
 	heartbeatService.Stop()
