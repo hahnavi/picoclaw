@@ -58,14 +58,27 @@ type AgentsConfig struct {
 	Defaults AgentDefaults `json:"defaults"`
 }
 
+// ContextPruningConfig holds configuration for TTL-based context pruning.
+type ContextPruningConfig struct {
+	Mode                 string  `json:"mode" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_PRUNING_MODE"`
+	TTLMinutes           int     `json:"ttl_minutes" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_PRUNING_TTL_MINUTES"`
+	KeepLastAssistants   int     `json:"keep_last_assistants" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_PRUNING_KEEP_LAST_ASSISTANTS"`
+	SoftTrimRatio        float64 `json:"soft_trim_ratio" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_PRUNING_SOFT_TRIM_RATIO"`
+	HardClearRatio       float64 `json:"hard_clear_ratio" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_PRUNING_HARD_CLEAR_RATIO"`
+	MinPrunableToolChars int     `json:"min_prunable_tool_chars" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_PRUNING_MIN_PRUNABLE_TOOL_CHARS"`
+}
+
 type AgentDefaults struct {
-	Workspace           string  `json:"workspace" env:"PICOCLAW_AGENTS_DEFAULTS_WORKSPACE"`
-	RestrictToWorkspace bool    `json:"restrict_to_workspace" env:"PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
-	Provider            string  `json:"provider" env:"PICOCLAW_AGENTS_DEFAULTS_PROVIDER"`
-	Model               string  `json:"model" env:"PICOCLAW_AGENTS_DEFAULTS_MODEL"`
-	MaxTokens           int     `json:"max_tokens" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS"`
-	Temperature         float64 `json:"temperature" env:"PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE"`
-	MaxToolIterations   int     `json:"max_tool_iterations" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
+	Workspace              string                 `json:"workspace" env:"PICOCLAW_AGENTS_DEFAULTS_WORKSPACE"`
+	RestrictToWorkspace    bool                   `json:"restrict_to_workspace" env:"PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
+	Provider               string                 `json:"provider" env:"PICOCLAW_AGENTS_DEFAULTS_PROVIDER"`
+	Model                  string                 `json:"model" env:"PICOCLAW_AGENTS_DEFAULTS_MODEL"`
+	MaxTokens              int                    `json:"max_tokens" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS"`
+	Temperature            float64                `json:"temperature" env:"PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE"`
+	MaxToolIterations      int                    `json:"max_tool_iterations" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
+	BootstrapMaxChars      int                    `json:"bootstrap_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_MAX_CHARS"`
+	BootstrapTotalMaxChars int                    `json:"bootstrap_total_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_TOTAL_MAX_CHARS"`
+	ContextPruning         ContextPruningConfig   `json:"context_pruning"`
 }
 
 type ChannelsConfig struct {
@@ -140,13 +153,23 @@ func DefaultConfig() *Config {
 	return &Config{
 		Agents: AgentsConfig{
 			Defaults: AgentDefaults{
-				Workspace:           "~/.picoclaw/workspace",
-				RestrictToWorkspace: true,
-				Provider:            "",
-				Model:               "glm-4.7",
-				MaxTokens:           8192,
-				Temperature:         0.7,
-				MaxToolIterations:   20,
+				Workspace:              "~/.picoclaw/workspace",
+				RestrictToWorkspace:    true,
+				Provider:               "",
+				Model:                  "glm-4.7",
+				MaxTokens:              8192,
+				Temperature:            0.7,
+				MaxToolIterations:      20,
+				BootstrapMaxChars:      20000,
+				BootstrapTotalMaxChars: 24000,
+				ContextPruning: ContextPruningConfig{
+					Mode:                 "off",
+					TTLMinutes:           60,
+					KeepLastAssistants:   4,
+					SoftTrimRatio:        0.3,
+					HardClearRatio:       0.5,
+					MinPrunableToolChars: 1000,
+				},
 			},
 		},
 		Channels: ChannelsConfig{

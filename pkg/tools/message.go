@@ -87,8 +87,11 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]interface{}) 
 	}
 
 	if err := t.sendCallback(channel, chatID, content); err != nil {
+		// Return error to LLM AND show to user via ForUser
+		// This ensures the user gets notified about the failure
 		return &ToolResult{
-			ForLLM:  fmt.Sprintf("sending message: %v", err),
+			ForLLM:  fmt.Sprintf("Failed to send message: %v", err),
+			ForUser: fmt.Sprintf("⚠️ Failed to send message: %v", err),
 			IsError: true,
 			Err:     err,
 		}

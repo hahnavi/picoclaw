@@ -15,11 +15,12 @@ import (
 )
 
 type ContextBuilder struct {
-	workspace    string
-	skillsLoader *skills.SkillsLoader
-	memory       *MemoryStore
-	tools        *tools.ToolRegistry // Direct reference to tool registry
-	currentUserID string             // Current user ID for memory operations
+	workspace       string
+	skillsLoader    *skills.SkillsLoader
+	memory          *MemoryStore
+	tools           *tools.ToolRegistry // Direct reference to tool registry
+	currentUserID   string             // Current user ID for memory operations
+	bootstrapConfig BootstrapConfig    // Bootstrap truncation config
 }
 
 func getGlobalConfigDir() string {
@@ -47,6 +48,11 @@ func NewContextBuilder(workspace string) *ContextBuilder {
 // SetToolsRegistry sets the tools registry for dynamic tool summary generation.
 func (cb *ContextBuilder) SetToolsRegistry(registry *tools.ToolRegistry) {
 	cb.tools = registry
+}
+
+// SetBootstrapConfig sets the bootstrap truncation configuration.
+func (cb *ContextBuilder) SetBootstrapConfig(config BootstrapConfig) {
+	cb.bootstrapConfig = config
 }
 
 // SetUserContext sets the current user ID for memory operations.
@@ -251,33 +257,20 @@ The following skills extend your capabilities. To use a skill, read its SKILL.md
 %s`, skillsSummary))
 	}
 
-	// Memory context (user-specific if user context is set)
-	memoryContext := cb.getUserMemoryContext()
-	if memoryContext != "" {
-		parts = append(parts, memoryContext)
-	}
+	// Memory is NOT auto-injected - use the memory_get tool to load memory on demand
+	// This reduces token usage when memory is not needed for the current request
 
 	// Join with "---" separator
 	return strings.Join(parts, "\n\n---\n\n")
 }
 
 func (cb *ContextBuilder) LoadBootstrapFiles() string {
-	bootstrapFiles := []string{
-		"AGENTS.md",
-		"SOUL.md",
-		"USER.md",
-		"IDENTITY.md",
+	// Use default config if not set
+	config := cb.bootstrapConfig
+	if config.MaxChars == 0 {
+		config = DefaultBootstrapConfig()
 	}
-
-	var result string
-	for _, filename := range bootstrapFiles {
-		filePath := filepath.Join(cb.workspace, filename)
-		if data, err := os.ReadFile(filePath); err == nil {
-			result += fmt.Sprintf("## %s\n\n%s\n\n", filename, string(data))
-		}
-	}
-
-	return result
+	return LoadBootstrapFiles(cb.workspace, config)
 }
 
 func (cb *ContextBuilder) BuildMessages(history []providers.Message, summary string, currentMessage string, media []string, channel, chatID string) []providers.Message {

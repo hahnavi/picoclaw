@@ -66,6 +66,11 @@ pkg/
 ├── agent/
 │   ├── loop.go               # Main agent loop, LLM iteration, tool execution
 │   ├── context.go            # System prompt builder, skill/memory loading
+│   ├── context_window.go     # Context window budget tracking and allocation
+│   ├── bootstrap.go          # Bootstrap file truncation for identity/context files
+│   ├── pruning.go            # Context pruning with message summarization
+│   ├── multipart_summary.go  # Large content summarization in chunks
+│   ├── tool_truncation.go    # Tool result truncation with head/tail preservation
 │   └── memory.go             # Long-term memory store
 ├── auth/
 │   ├── oauth.go              # OAuth authentication flows (for Codex, etc.)
@@ -144,6 +149,12 @@ pkg/
 
 **Session Management**: Conversations are stored in `workspace/sessions/`. History is automatically summarized when exceeding 75% of context window or 20 messages.
 
+**Context Window Management**: The agent intelligently manages context window budgets with:
+- **Bootstrap truncation**: Identity/context files (AGENTS.md, SOUL.md, IDENTITY.md, USER.md) are truncated with head/tail preservation (70%/20% ratio) when exceeding per-file (20K chars) or total (24K chars) limits
+- **Budget tracking**: ContextWindow tracks token allocation across bootstrap content, message history, and tool results
+- **Pruning**: Old messages are pruned and summarized using multipart summarization when approaching context limits
+- **Tool truncation**: Large tool results are truncated with head/tail preservation to prevent context overflow
+
 **Security Sandbox**: When `restrict_to_workspace` is true, file/command tools are restricted to the workspace directory. The `exec` tool additionally blocks dangerous commands (rm -rf, format, dd, shutdown, fork bombs).
 
 ## Configuration
@@ -151,7 +162,7 @@ pkg/
 Config file location: `~/.picoclaw/config.json`
 
 Key configuration sections:
-- `agents.defaults`: Model, workspace, max_tokens, temperature, max_tool_iterations
+- `agents.defaults`: Model, workspace, max_tokens, temperature, max_tool_iterations, bootstrap_max_chars, bootstrap_total_max_chars, context_pruning (mode, ttl_minutes, keep_last_assistants, soft_trim_ratio, hard_clear_ratio, min_prunable_tool_chars)
 - `channels`: Discord credentials and allow lists
 - `providers`: API keys for OpenRouter, OpenAI, Gemini, Zhipu, Groq, VLLM, Nvidia, Ollama, Moonshot, ShengSuanYun, DeepSeek, GitHub Copilot, Codex
 - `tools.web`: Brave and DuckDuckGo search configuration

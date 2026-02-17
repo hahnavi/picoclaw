@@ -244,8 +244,9 @@ func findLastSpace(s string, searchWindow int) int {
 }
 
 func (c *DiscordChannel) sendChunk(ctx context.Context, channelID, content string) error {
-	// 使用传入的 ctx 进行超时控制
-	sendCtx, cancel := context.WithTimeout(ctx, sendTimeout)
+	// Use a longer timeout to prevent race conditions where message is sent but we think it timed out
+	// 30 seconds should be enough for Discord API to respond
+	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	done := make(chan error, 1)
@@ -257,11 +258,25 @@ func (c *DiscordChannel) sendChunk(ctx context.Context, channelID, content strin
 	select {
 	case err := <-done:
 		if err != nil {
+			logger.ErrorCF("discord", "Failed to send message chunk", map[string]any{
+				"channel_id": channelID,
+				"error":      err.Error(),
+				"length":     len(content),
+			})
 			return fmt.Errorf("failed to send discord message: %w", err)
 		}
+		logger.DebugCF("discord", "Message chunk sent successfully", map[string]any{
+			"channel_id": channelID,
+			"length":     len(content),
+		})
 		return nil
 	case <-sendCtx.Done():
-		return fmt.Errorf("send message timeout: %w", sendCtx.Err())
+		err := fmt.Errorf("send message timeout after 30s")
+		logger.ErrorCF("discord", "Send timeout", map[string]any{
+			"channel_id": channelID,
+			"error":      err.Error(),
+		})
+		return err
 	}
 }
 
@@ -282,18 +297,20 @@ func (c *DiscordChannel) handleMessage(s *discordgo.Session, m *discordgo.Messag
 		return
 	}
 
-	if err := c.session.ChannelTyping(m.ChannelID); err != nil {
-		logger.ErrorCF("discord", "Failed to send typing indicator", map[string]any{
-			"error": err.Error(),
-		})
-	}
-
 	// 检查白名单，避免为被拒绝的用户下载附件和转录
+	// MOVED: Check allowlist BEFORE sending typing indicator
 	if !c.IsAllowed(m.Author.ID) {
 		logger.DebugCF("discord", "Message rejected by allowlist", map[string]any{
 			"user_id": m.Author.ID,
 		})
 		return
+	}
+
+	if err := c.session.ChannelTyping(m.ChannelID); err != nil {
+		logger.ErrorCF("discord", "Failed to send typing indicator", map[string]any{
+			"error": err.Error(),
+		})
+		// Don't return - typing indicator failure shouldn't block message processing
 	}
 
 	senderID := m.Author.ID

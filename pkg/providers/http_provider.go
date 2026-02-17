@@ -147,10 +147,11 @@ func (p *HTTPProvider) parseResponse(body []byte) (*LLMResponse, error) {
 	}
 
 	if len(apiResponse.Choices) == 0 {
+		// Log warning for empty choices - this causes "typing but no response"
 		return &LLMResponse{
 			Content:      "",
 			FinishReason: "stop",
-		}, nil
+		}, fmt.Errorf("API returned empty choices array")
 	}
 
 	choice := apiResponse.Choices[0]

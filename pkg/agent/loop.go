@@ -44,6 +44,8 @@ type AgentLoop struct {
 	running        atomic.Bool
 	summarizing    sync.Map // Tracks which sessions are currently being summarized
 	channelManager *channels.Manager
+	bootstrapConfig BootstrapConfig // Bootstrap truncation config
+	pruningConfig    PruningConfig    // Context pruning config
 }
 
 // processOptions configures how a message is processed
@@ -132,22 +134,67 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 	// Create state manager for atomic state persistence
 	stateManager := state.NewManager(workspace)
 
+	// Initialize bootstrap config from config file
+	bootstrapConfig := BootstrapConfig{
+		MaxChars:      cfg.Agents.Defaults.BootstrapMaxChars,
+		TotalMaxChars: cfg.Agents.Defaults.BootstrapTotalMaxChars,
+	}
+	if bootstrapConfig.MaxChars == 0 {
+		bootstrapConfig.MaxChars = DEFAULT_BOOTSTRAP_MAX_CHARS
+	}
+	if bootstrapConfig.TotalMaxChars == 0 {
+		bootstrapConfig.TotalMaxChars = DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS
+	}
+
+	// Initialize pruning config from config file
+	pruningConfig := PruningConfig{
+		Mode:                 PruningMode(cfg.Agents.Defaults.ContextPruning.Mode),
+		TTL:                  time.Duration(cfg.Agents.Defaults.ContextPruning.TTLMinutes) * time.Minute,
+		KeepLastAssistants:   cfg.Agents.Defaults.ContextPruning.KeepLastAssistants,
+		SoftTrimRatio:        cfg.Agents.Defaults.ContextPruning.SoftTrimRatio,
+		HardClearRatio:       cfg.Agents.Defaults.ContextPruning.HardClearRatio,
+		MinPrunableToolChars: cfg.Agents.Defaults.ContextPruning.MinPrunableToolChars,
+	}
+	// Set defaults if not configured
+	if pruningConfig.KeepLastAssistants == 0 {
+		pruningConfig.KeepLastAssistants = 4
+	}
+	if pruningConfig.SoftTrimRatio == 0 {
+		pruningConfig.SoftTrimRatio = 0.3
+	}
+	if pruningConfig.HardClearRatio == 0 {
+		pruningConfig.HardClearRatio = 0.5
+	}
+	if pruningConfig.MinPrunableToolChars == 0 {
+		pruningConfig.MinPrunableToolChars = 1000
+	}
+	if pruningConfig.TTL == 0 {
+		pruningConfig.TTL = 1 * time.Hour
+	}
+
 	// Create context builder and set tools registry
 	contextBuilder := NewContextBuilder(workspace)
 	contextBuilder.SetToolsRegistry(toolsRegistry)
+	contextBuilder.SetBootstrapConfig(bootstrapConfig)
+
+	// Validate context window size
+	contextWindow := cfg.Agents.Defaults.MaxTokens
+	EvaluateContextWindowGuard(contextWindow)
 
 	return &AgentLoop{
-		bus:            msgBus,
-		provider:       provider,
-		workspace:      workspace,
-		model:          cfg.Agents.Defaults.Model,
-		contextWindow:  cfg.Agents.Defaults.MaxTokens, // Restore context window for summarization
-		maxIterations:  cfg.Agents.Defaults.MaxToolIterations,
-		sessions:       sessionsManager,
-		state:          stateManager,
-		contextBuilder: contextBuilder,
-		tools:          toolsRegistry,
-		summarizing:    sync.Map{},
+		bus:             msgBus,
+		provider:        provider,
+		workspace:       workspace,
+		model:           cfg.Agents.Defaults.Model,
+		contextWindow:   contextWindow,
+		maxIterations:   cfg.Agents.Defaults.MaxToolIterations,
+		sessions:        sessionsManager,
+		state:           stateManager,
+		contextBuilder:  contextBuilder,
+		tools:           toolsRegistry,
+		summarizing:     sync.Map{},
+		bootstrapConfig: bootstrapConfig,
+		pruningConfig:   pruningConfig,
 	}
 }
 
@@ -167,6 +214,11 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 			response, err := al.processMessage(ctx, msg)
 			if err != nil {
 				response = fmt.Sprintf("Error processing message: %v", err)
+				logger.ErrorCF("agent", "Message processing error", map[string]interface{}{
+					"error":     err.Error(),
+					"channel":   msg.Channel,
+					"sender_id": msg.SenderID,
+				})
 			}
 
 			if response != "" {
@@ -179,13 +231,25 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 					}
 				}
 
-				if !alreadySent {
+				if alreadySent {
+					logger.DebugCF("agent", "Skipping outbound publish (message tool already sent)", map[string]interface{}{
+						"channel":   msg.Channel,
+						"sender_id": msg.SenderID,
+					})
+				} else {
 					al.bus.PublishOutbound(bus.OutboundMessage{
 						Channel: msg.Channel,
 						ChatID:  msg.ChatID,
 						Content: response,
 					})
 				}
+			} else {
+				// Empty response - log warning as this causes "typing but no response"
+				logger.WarnCF("agent", "Empty response from processMessage", map[string]interface{}{
+					"channel":   msg.Channel,
+					"chat_id":   msg.ChatID,
+					"sender_id": msg.SenderID,
+				})
 			}
 		}
 	}
@@ -373,6 +437,21 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, opts processOptions) (str
 	if !opts.NoHistory {
 		history = al.sessions.GetHistory(opts.SessionKey)
 		summary = al.sessions.GetSummary(opts.SessionKey)
+
+		// Apply context pruning if enabled
+		if al.pruningConfig.Mode != PruningModeOff {
+			prunedHistory, stats := ApplyPruning(history, al.pruningConfig)
+			if stats.MessagesRemoved > 0 || stats.ToolResultsRemoved > 0 {
+				logger.InfoCF("agent", "Applied context pruning",
+					map[string]interface{}{
+						"session_key":           opts.SessionKey,
+						"messages_removed":      stats.MessagesRemoved,
+						"tool_results_removed":  stats.ToolResultsRemoved,
+						"chars_saved":           stats.CharsSaved,
+					})
+			}
+			history = prunedHistory
+		}
 	}
 	messages := al.contextBuilder.BuildMessages(
 		history,
@@ -696,6 +775,9 @@ func (al *AgentLoop) runLLMIteration(ctx context.Context, messages []providers.M
 				contentForLLM = toolResult.Err.Error()
 			}
 
+			// Apply tool result truncation to prevent large results from consuming context
+			contentForLLM = TruncateToolResult(contentForLLM, al.contextWindow)
+
 			toolResultMsg := providers.Message{
 				Role:       "tool",
 				Content:    contentForLLM,
@@ -732,11 +814,17 @@ func (al *AgentLoop) updateToolContexts(channel, chatID string) {
 }
 
 // maybeSummarize triggers summarization if the session history exceeds thresholds.
+// Uses adaptive threshold based on message size distribution.
 func (al *AgentLoop) maybeSummarize(sessionKey, channel, chatID string) {
 	newHistory := al.sessions.GetHistory(sessionKey)
 	tokenEstimate := al.estimateTokens(newHistory)
-	threshold := al.contextWindow * 75 / 100
 
+	// Use adaptive threshold based on message characteristics
+	// Larger messages → earlier summarization (lower threshold)
+	chunkRatio := computeAdaptiveChunkRatio(newHistory, al.contextWindow)
+	threshold := int(float64(al.contextWindow) * chunkRatio)
+
+	// Ensure we summarize if we have many messages, even if tokens are low
 	if len(newHistory) > 20 || tokenEstimate > threshold {
 		if _, loading := al.summarizing.LoadOrStore(sessionKey, true); !loading {
 			go func() {
@@ -883,7 +971,7 @@ func formatToolsForLog(tools []providers.ToolDefinition) string {
 	return result
 }
 
-// summarizeSession summarizes the conversation history for a session.
+// summarizeSession summarizes the conversation history for a session using multi-part summarization.
 func (al *AgentLoop) summarizeSession(sessionKey string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
@@ -909,7 +997,7 @@ func (al *AgentLoop) summarizeSession(sessionKey string) {
 			continue
 		}
 		// Estimate tokens for this message
-		msgTokens := len(m.Content) / 2 // Use safer estimate here too (2.5 -> 2 for integer division safety)
+		msgTokens := len(m.Content) / 2
 		if msgTokens > maxMessageTokens {
 			omitted = true
 			continue
@@ -921,29 +1009,14 @@ func (al *AgentLoop) summarizeSession(sessionKey string) {
 		return
 	}
 
-	// Multi-Part Summarization
-	// Split into two parts if history is significant
-	var finalSummary string
-	if len(validMessages) > 10 {
-		mid := len(validMessages) / 2
-		part1 := validMessages[:mid]
-		part2 := validMessages[mid:]
-
-		s1, _ := al.summarizeBatch(ctx, part1, "")
-		s2, _ := al.summarizeBatch(ctx, part2, "")
-
-		// Merge them
-		mergePrompt := fmt.Sprintf("Merge these two conversation summaries into one cohesive summary:\n\n1: %s\n\n2: %s", s1, s2)
-		resp, err := al.provider.Chat(ctx, []providers.Message{{Role: "user", Content: mergePrompt}}, nil, al.model, map[string]interface{}{
-			"max_tokens":  1024,
-			"temperature": 0.3,
-		})
-		if err == nil {
-			finalSummary = resp.Content
-		} else {
-			finalSummary = s1 + " " + s2
-		}
-	} else {
+	// Use multi-part summarization for better handling of large conversations
+	finalSummary, err := SummarizeMultipart(ctx, al.provider, validMessages, summary, al.model, al.contextWindow)
+	if err != nil {
+		logger.WarnCF("agent", "Multi-part summarization failed, falling back to single-part",
+			map[string]interface{}{
+				"error": err.Error(),
+			})
+		// Fallback to single-part summarization
 		finalSummary, _ = al.summarizeBatch(ctx, validMessages, summary)
 	}
 
@@ -981,14 +1054,18 @@ func (al *AgentLoop) summarizeBatch(ctx context.Context, batch []providers.Messa
 
 // estimateTokens estimates the number of tokens in a message list.
 // Uses a safe heuristic of 2.5 characters per token to account for CJK and other
-// overheads better than the previous 3 chars/token.
+// overheads better than the previous 3 chars/token, plus a 20% safety margin.
+const SAFETY_MARGIN = 1.2 // 20% buffer to prevent context overflow
+
 func (al *AgentLoop) estimateTokens(messages []providers.Message) int {
 	totalChars := 0
 	for _, m := range messages {
 		totalChars += utf8.RuneCountInString(m.Content)
 	}
 	// 2.5 chars per token = totalChars * 2 / 5
-	return totalChars * 2 / 5
+	estimated := totalChars * 2 / 5
+	// Apply safety margin to prevent context overflow
+	return int(float64(estimated) * SAFETY_MARGIN)
 }
 
 func (al *AgentLoop) handleCommand(ctx context.Context, msg bus.InboundMessage) (string, bool) {
