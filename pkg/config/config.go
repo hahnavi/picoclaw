@@ -86,9 +86,25 @@ type ChannelsConfig struct {
 }
 
 type DiscordConfig struct {
-	Enabled   bool                `json:"enabled" env:"PICOCLAW_CHANNELS_DISCORD_ENABLED"`
-	Token     string              `json:"token" env:"PICOCLAW_CHANNELS_DISCORD_TOKEN"`
-	AllowFrom FlexibleStringSlice `json:"allow_from" env:"PICOCLAW_CHANNELS_DISCORD_ALLOW_FROM"`
+	Enabled        bool                         `json:"enabled" env:"PICOCLAW_CHANNELS_DISCORD_ENABLED"`
+	Token          string                       `json:"token" env:"PICOCLAW_CHANNELS_DISCORD_TOKEN"`
+	AllowFrom      FlexibleStringSlice          `json:"allow_from" env:"PICOCLAW_CHANNELS_DISCORD_ALLOW_FROM"`
+	RequireMention bool                         `json:"require_mention" env:"PICOCLAW_CHANNELS_DISCORD_REQUIRE_MENTION"`
+	ReplyToMode    string                       `json:"reply_to_mode" env:"PICOCLAW_CHANNELS_DISCORD_REPLY_TO_MODE"` // "off", "first", "all"
+	DMPolicy       string                       `json:"dm_policy" env:"PICOCLAW_CHANNELS_DISCORD_DM_POLICY"`       // "open", "allowlist", "disabled"
+	Guilds         map[string]DiscordGuildConfig `json:"guilds"`
+}
+
+type DiscordGuildConfig struct {
+	RequireMention bool                           `json:"require_mention"`
+	Channels       map[string]DiscordChannelConfig `json:"channels"`
+}
+
+type DiscordChannelConfig struct {
+	Allow         bool     `json:"allow"`
+	RequireMention bool    `json:"require_mention"`
+	Users         []string `json:"users"`
+	Roles         []string `json:"roles"`
 }
 
 type HeartbeatConfig struct {
@@ -174,9 +190,13 @@ func DefaultConfig() *Config {
 		},
 		Channels: ChannelsConfig{
 			Discord: DiscordConfig{
-				Enabled:   false,
-				Token:     "",
-				AllowFrom: FlexibleStringSlice{},
+				Enabled:        false,
+				Token:          "",
+				AllowFrom:      FlexibleStringSlice{},
+				RequireMention: false,
+				ReplyToMode:    "first",
+				DMPolicy:       "allowlist",
+				Guilds:         make(map[string]DiscordGuildConfig),
 			},
 		},
 		Providers: ProvidersConfig{

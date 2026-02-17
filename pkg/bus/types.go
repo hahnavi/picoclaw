@@ -14,6 +14,7 @@ type OutboundMessage struct {
 	Channel string `json:"channel"`
 	ChatID  string `json:"chat_id"`
 	Content string `json:"content"`
+	ReplyTo string `json:"reply_to,omitempty"` // Message ID to reply to
 }
 
 type MessageHandler func(InboundMessage) error

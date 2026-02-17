@@ -237,10 +237,16 @@ func (al *AgentLoop) Run(ctx context.Context) error {
 						"sender_id": msg.SenderID,
 					})
 				} else {
+					// Extract message_id from metadata for threaded replies
+					replyTo := ""
+					if msg.Metadata != nil {
+						replyTo = msg.Metadata["message_id"]
+					}
 					al.bus.PublishOutbound(bus.OutboundMessage{
 						Channel: msg.Channel,
 						ChatID:  msg.ChatID,
 						Content: response,
+						ReplyTo: replyTo,
 					})
 				}
 			} else {
