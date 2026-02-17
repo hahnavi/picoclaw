@@ -814,29 +814,18 @@ func (al *AgentLoop) updateToolContexts(channel, chatID string) {
 }
 
 // maybeSummarize triggers summarization if the session history exceeds thresholds.
-// Uses adaptive threshold based on message size distribution.
 func (al *AgentLoop) maybeSummarize(sessionKey, channel, chatID string) {
 	newHistory := al.sessions.GetHistory(sessionKey)
 	tokenEstimate := al.estimateTokens(newHistory)
 
-	// Use adaptive threshold based on message characteristics
-	// Larger messages → earlier summarization (lower threshold)
-	chunkRatio := computeAdaptiveChunkRatio(newHistory, al.contextWindow)
-	threshold := int(float64(al.contextWindow) * chunkRatio)
+	// Use 90% of context window as threshold
+	threshold := int(float64(al.contextWindow) * 0.90)
 
 	// Ensure we summarize if we have many messages, even if tokens are low
 	if len(newHistory) > 20 || tokenEstimate > threshold {
 		if _, loading := al.summarizing.LoadOrStore(sessionKey, true); !loading {
 			go func() {
 				defer al.summarizing.Delete(sessionKey)
-				// Notify user about optimization if not an internal channel
-				if !constants.IsInternalChannel(channel) {
-					al.bus.PublishOutbound(bus.OutboundMessage{
-						Channel: channel,
-						ChatID:  chatID,
-						Content: "⚠️ Memory threshold reached. Optimizing conversation history...",
-					})
-				}
 				al.summarizeSession(sessionKey)
 			}()
 		}
