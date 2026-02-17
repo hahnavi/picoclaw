@@ -117,7 +117,7 @@ func TestMessageTool_Execute_SendFailure(t *testing.T) {
 	}
 
 	// - ForLLM contains error description
-	expectedErrMsg := "sending message: network error"
+	expectedErrMsg := "Failed to send message: network error"
 	if result.ForLLM != expectedErrMsg {
 		t.Errorf("Expected ForLLM '%s', got '%s'", expectedErrMsg, result.ForLLM)
 	}
