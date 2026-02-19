@@ -124,6 +124,7 @@ pkg/
 │   └── signals.go            # SIGHUP signal handling for manual reload
 ├── utils/
 │   ├── media.go              # Media processing utilities
+│   ├── message.go            # Message splitting utilities (shared across channels)
 │   └── string.go             # String manipulation utilities
 └── voice/
     └── transcriber.go        # Groq Whisper transcription for Discord voice messages
@@ -167,7 +168,17 @@ pkg/
 - **Pruning**: Old messages are pruned and summarized using multipart summarization when approaching context limits
 - **Tool truncation**: Large tool results are truncated with head/tail preservation to prevent context overflow
 
-**Security Sandbox**: When `restrict_to_workspace` is true, file/command tools are restricted to the workspace directory. The `exec` tool additionally blocks dangerous commands (rm -rf, format, dd, shutdown, fork bombs).
+**Security Sandbox**: When `restrict_to_workspace` is true, file/command tools are restricted to the workspace directory. The `exec` tool additionally blocks dangerous commands (rm -rf, format, dd, shutdown, fork bombs) and supports configurable command filtering lists.
+
+**Slash Commands**: The agent supports built-in slash commands:
+- `/show model` - Display current model
+- `/show channel` - Display current channel
+- `/help` - Show available commands
+
+**Discord Features**:
+- **Message splitting**: Long messages are automatically split at 1500 characters (Discord limit is 2000) with code block preservation
+- **Reply-to modes**: Configurable reply behavior - `first` (only first chunk replies), `all` (all chunks reply), or `off` (no replies)
+- **Smart splitting**: Preserves code blocks by detecting unclosed ``` and extending buffer
 
 **Hot Reload** (gateway mode only): PicoClaw supports hot reload of configuration, skills, and bootstrap files without restart:
 - **Config reload**: Changes to `~/.picoclaw/config.json` automatically reload model, max_tokens, temperature, tool configs
@@ -176,6 +187,91 @@ pkg/
 - **SIGHUP support**: Send `kill -HUP <pid>` to manually trigger a config reload
 - **Debouncing**: 300ms debounce prevents duplicate reload events
 - **Implementation**: Uses `fsnotify` for file watching; reload manager handles safe component updates
+
+## Features Stripped Down from Main Branch
+
+This branch is a minimal version of PicoClaw with ~8,077 lines of code removed (net -3,479 lines) from the main branch. The following features were removed or simplified:
+
+### Channels Removed
+- **Removed channels**: Telegram, Slack, WhatsApp, Line, DingTalk, Feishu (32-bit and 64-bit), QQ, OneBot, MaixCam
+- **Remaining**: Discord only
+- **Files removed**:
+  - `pkg/channels/telegram.go` (491 lines)
+  - `pkg/channels/slack.go` (404 lines + 174 lines tests)
+  - `pkg/channels/whatsapp.go` (184 lines)
+  - `pkg/channels/line.go` (598 lines)
+  - `pkg/channels/dingtalk.go` (193 lines)
+  - `pkg/channels/feishu_32.go` (36 lines)
+  - `pkg/channels/feishu_64.go` (218 lines)
+  - `pkg/channels/qq.go` (243 lines)
+  - `pkg/channels/onebot.go` (686 lines)
+  - `pkg/channels/maixcam.go` (243 lines)
+  - `pkg/channels/manager.go` - simplified version (117 lines removed, channel manager logic simplified)
+
+### Providers Removed
+- **Removed providers**: Claude (direct), Claude CLI
+- **Remaining**: Codex, Codex CLI, GitHub Copilot, HTTP provider (handles OpenAI, Groq, OpenRouter, etc.)
+- **Files removed**:
+  - `pkg/providers/claude_provider.go` (207 lines + 210 lines tests)
+  - `pkg/providers/claude_cli_provider.go` (221 lines + 126 lines integration tests + 981 lines tests)
+  - `pkg/providers/anthropic/` - entire directory removed
+
+### Migration Package Removed
+- **Removed entirely**: `pkg/migrate/` package
+- **Files removed**:
+  - `pkg/migrate/config.go` (382 lines)
+  - `pkg/migrate/migrate.go` (394 lines + 854 lines tests)
+  - `pkg/migrate/workspace.go` (106 lines)
+
+### Agent Features Added
+While stripping down features, this branch adds new agent capabilities:
+- **Added**: `pkg/agent/bootstrap.go` (153 lines) - Bootstrap file truncation
+- **Added**: `pkg/agent/context_window.go` (72 lines) - Context budget tracking
+- **Added**: `pkg/agent/pruning.go` (207 lines) - Context pruning with message summarization
+- **Added**: `pkg/agent/multipart_summary.go` (265 lines) - Large content summarization
+- **Added**: `pkg/agent/tool_truncation.go` (94 lines) - Tool result truncation
+
+### Hot Reload Added
+- **Added**: `pkg/reload/` package (new feature not in main)
+- **Files added**:
+  - `pkg/reload/watcher.go` (348 lines + 348 lines tests) - File watching with fsnotify
+  - `pkg/reload/manager.go` (278 lines + 262 lines tests) - Reload orchestration
+  - `pkg/reload/signals.go` (85 lines) - SIGHUP signal handling
+
+### Recent Updates from Main Branch (Cherry-picked)
+- **Model fallback chain**: Automatic model fallback with error classification and cooldown
+- **Cron execution timeout**: Configurable timeout for cron job execution
+- **SKILL.md frontmatter**: Improved regex parsing for skill metadata
+- **Build optimizations**: Optimized LDFLAGS for smaller binary size
+- **CI improvements**: golangci-lint configuration and GitHub Actions enhancements
+- **Documentation**: Added Vietnamese and Brazilian Portuguese READMEs
+- **Dependencies**: Logic to prevent frequent dependency updates
+
+### Summary Table
+| Category | Main Branch | This Branch | Change |
+|----------|-------------|-------------|--------|
+| **Channels** | 10+ (Telegram, Slack, WhatsApp, Line, DingTalk, Feishu, QQ, OneBot, MaixCam, Discord) | 1 (Discord only) | -9 channels |
+| **Providers** | Claude, Claude CLI, Codex, Codex CLI, GitHub Copilot, HTTP | Codex, Codex CLI, GitHub Copilot, HTTP | -2 providers |
+| **Migration** | Full migrate package | Removed | -382-854 lines |
+| **Agent Features** | Basic | Bootstrap truncation, context window, pruning, tool truncation | +791 lines |
+| **Hot Reload** | None | File watcher, reload manager, SIGHUP | +1,323 lines |
+| **Net Code Change** | - | - | -3,479 lines |
+
+### Design Philosophy
+This stripped-down branch prioritizes:
+1. **Single-channel focus** - Discord only, reducing maintenance burden
+2. **Core LLM providers** - Keep widely-used providers (OpenRouter, OpenAI, Groq, etc. via HTTP)
+3. **Enhanced agent features** - Added advanced context management for better efficiency
+4. **Hot reload capability** - Added for better development/operation experience
+5. **Minimal dependencies** - Removed migration tools and channel-specific complexity
+
+This makes the branch suitable for:
+- Discord-focused deployments
+- Resource-constrained environments
+- Users who only need one messaging platform
+- Development and testing of agent features
+
+For full multi-channel support, consider using the main branch.
 
 ## Configuration
 
@@ -267,7 +363,7 @@ func (c *MyChannel) Stop() error { ... }
 - **Orphaned tool messages**: The agent loop removes leading "tool" role messages from history to prevent LLM errors when tool call IDs are missing after summarization.
 - **Heartbeat independence**: Heartbeat tasks use `ProcessHeartbeat()` which doesn't load session history - each heartbeat execution is independent.
 - **Message deduplication**: The agent checks if the `message` tool already sent a response to avoid duplicate messages to users.
-- **Token estimation**: Uses rune count / 3 for CJK-aware estimation (more accurate than byte length).
+- **Token estimation**: Uses rune count * 2 / 5 for CJK-aware estimation (2.5 chars per token) with 20% safety margin.
 - **Platform-specific code**: Use build tags (e.g., `i2c_linux.go`, `i2c_other.go`) for platform-specific implementations.
 - **Health check endpoints**: The gateway exposes `/health` (liveness) and `/ready` (readiness) endpoints at `http://host:port/health` and `/ready` for container orchestration probes. Configure host and port via `gateway.host` and `gateway.port` in config.
 - **Voice transcription**: Discord voice messages are automatically transcribed using Groq's Whisper API when Groq is configured. The transcription happens in the Discord channel before the text is sent to the agent.
