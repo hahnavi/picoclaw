@@ -836,8 +836,8 @@ func (al *AgentLoop) maybeSummarize(sessionKey, channel, chatID string) {
 		if _, loading := al.summarizing.LoadOrStore(sessionKey, true); !loading {
 			go func() {
 				defer al.summarizing.Delete(sessionKey)
-				// Notify user about optimization if not an internal channel
-				if !constants.IsInternalChannel(channel) {
+				// Only show warning in CLI, not in chat apps (Discord, etc.)
+				if channel == "cli" {
 					al.bus.PublishOutbound(bus.OutboundMessage{
 						Channel: channel,
 						ChatID:  chatID,
