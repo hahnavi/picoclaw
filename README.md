@@ -68,6 +68,24 @@
 
 🤖 **AI-Bootstrapped**: Autonomous Go-native implementation — 95% Agent-generated core with human-in-the-loop refinement.
 
+🔥 **Hot Reload**: Dynamic configuration updates without restart (gateway mode) - watch config, skills, and bootstrap files for changes.
+
+🧠 **Smart Context Management**: Automatic context pruning, message summarization, and bootstrap truncation for optimal token usage.
+
+💬 **Discord Enhancements**: Message auto-split with code block preservation, configurable reply-to modes.
+
+🔄 **Model Fallback**: Automatic model fallback with error classification and cooldown.
+
+> [!NOTE]
+> **📋 Branch Information**: You are currently on the **exp8d1ec** branch, a streamlined version of PicoClaw optimized for Discord-only deployments with advanced context management features.
+>
+> **Key differences from main branch**:
+> - **Channels**: Discord only (removed Telegram, Slack, WhatsApp, Line, DingTalk, Feishu, QQ, OneBot, MaixCam)
+> - **Providers**: HTTP-based providers only (removed Claude direct/CLI providers)
+> - **Enhanced features**: Hot reload, bootstrap truncation, context window management, message pruning
+>
+> For full multi-channel support, see the [main branch](https://github.com/sipeed/picoclaw).
+
 |                               | OpenClaw      | NanoBot                  | **PicoClaw**                              |
 | ----------------------------- | ------------- | ------------------------ | ----------------------------------------- |
 | **Language**                  | TypeScript    | Python                   | **Go**                                    |
