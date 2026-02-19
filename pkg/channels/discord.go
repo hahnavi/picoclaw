@@ -138,6 +138,10 @@ func (c *DiscordChannel) Send(ctx context.Context, msg bus.OutboundMessage) erro
 	return nil
 }
 
+func (c *DiscordChannel) sendChunk(ctx context.Context, channelID, content, replyTo string) error {
+	// Use a longer timeout to prevent race conditions where message is sent but we think it timed out
+	// 30 seconds should be enough for Discord API to respond
+	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	done := make(chan error, 1)
