@@ -3,7 +3,7 @@
 
 <h1>PicoClaw: Trợ lý AI Siêu Nhẹ viết bằng Go</h1>
 
-<h3>Phần cứng $10 · RAM 10MB · Khởi động 1 giây · 皮皮虾，我们走！</h3>
+<h3>RAM tối thiểu · Khởi động 1 giây · 皮皮虾，我们走！</h3>
 
   <p>
     <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go&logoColor=white" alt="Go">
@@ -21,7 +21,7 @@
 
 🦐 **PicoClaw** là trợ lý AI cá nhân siêu nhẹ, lấy cảm hứng từ [nanobot](https://github.com/HKUDS/nanobot), được viết lại hoàn toàn bằng **Go** thông qua quá trình "tự khởi tạo" (self-bootstrapping) — nơi chính AI Agent đã tự dẫn dắt toàn bộ quá trình chuyển đổi kiến trúc và tối ưu hóa mã nguồn.
 
-⚡️ **Cực kỳ nhẹ:** Chạy trên phần cứng chỉ **$10** với RAM **<10MB**. Tiết kiệm 99% bộ nhớ so với OpenClaw và rẻ hơn 98% so với Mac mini!
+⚡️ **Cực kỳ nhẹ:** Chạy với tài nguyên tối thiểu. Tiết kiệm đáng kể bộ nhớ so với OpenClaw!
 
 <table align="center">
 <tr align="center">
@@ -55,13 +55,13 @@
 2026-02-13 🎉 PicoClaw đạt 5000 stars trong 4 ngày! Cảm ơn cộng đồng! Chúng tôi đang hoàn thiện **Lộ trình dự án (Roadmap)** và thiết lập **Nhóm phát triển** để đẩy nhanh tốc độ phát triển PicoClaw.  
 🚀 **Kêu gọi hành động:** Vui lòng gửi yêu cầu tính năng tại GitHub Discussions. Chúng tôi sẽ xem xét và ưu tiên trong cuộc họp hàng tuần.
 
-2026-02-09 🎉 PicoClaw chính thức ra mắt! Được xây dựng trong 1 ngày để mang AI Agent đến phần cứng $10 với RAM <10MB. 🦐 PicoClaw, Lên Đường!
+2026-02-09 🎉 PicoClaw chính thức ra mắt! Được xây dựng trong 1 ngày để mang AI Agent với tài nguyên tối thiểu. 🦐 PicoClaw, Lên Đường!
 
 ## ✨ Tính năng nổi bật
 
-🪶 **Siêu nhẹ**: Bộ nhớ sử dụng <10MB — nhỏ hơn 99% so với Clawdbot (chức năng cốt lõi).
+🪶 **Siêu nhẹ**: Bộ nhớ sử dụng tối thiểu — nhỏ hơn đáng kể so với Clawdbot (chức năng cốt lõi).
 
-💰 **Chi phí tối thiểu**: Đủ hiệu quả để chạy trên phần cứng $10 — rẻ hơn 98% so với Mac mini.
+💰 **Hiệu quả tài nguyên**: Thiết kế để sử dụng tối thiểu tài nguyên trong khi vẫn duy trì đầy đủ chức năng.
 
 ⚡️ **Khởi động siêu nhanh**: Nhanh gấp 400 lần, khởi động trong 1 giây ngay cả trên CPU đơn nhân 0.6GHz.
 
@@ -72,9 +72,9 @@
 |                               | OpenClaw      | NanoBot                  | **PicoClaw**                              |
 | ----------------------------- | ------------- | ------------------------ | ----------------------------------------- |
 | **Ngôn ngữ**                  | TypeScript    | Python                   | **Go**                                    |
-| **RAM**                       | >1GB          | >100MB                   | **< 10MB**                                |
+| **RAM**                       | >1GB          | >100MB                   | **Tối thiểu**                              |
 | **Thời gian khởi động**</br>(CPU 0.8GHz) | >500s         | >30s                     | **<1s**                                   |
-| **Chi phí**                   | Mac Mini $599 | Hầu hết SBC Linux ~$50  | **Mọi bo mạch Linux**</br>**Chỉ từ $10** |
+| **Chi phí**                   | Mac Mini $599 | Hầu hết SBC Linux ~$50  | **Vận hành hiệu quả**</br>**Tài nguyên tối thiểu** |
 
 <img src="assets/compare.jpg" alt="PicoClaw" width="512">
 
@@ -99,18 +99,6 @@
 <td align="center">Khám phá • Phân tích • Xu hướng</td>
 </tr>
 </table>
-
-### 🐜 Triển khai sáng tạo trên phần cứng tối thiểu
-
-PicoClaw có thể triển khai trên hầu hết mọi thiết bị Linux!
-
-* $9.9 [LicheeRV-Nano](https://www.aliexpress.com/item/1005006519668532.html) phiên bản E (Ethernet) hoặc W (WiFi6), dùng làm Trợ lý Gia đình tối giản.
-* $30~50 [NanoKVM](https://www.aliexpress.com/item/1005007369816019.html), hoặc $100 [NanoKVM-Pro](https://www.aliexpress.com/item/1005010048471263.html), dùng cho quản trị Server tự động.
-* $50 [MaixCAM](https://www.aliexpress.com/item/1005008053333693.html) hoặc $100 [MaixCAM2](https://www.kickstarter.com/projects/zepan/maixcam2-build-your-next-gen-4k-ai-camera), dùng cho Giám sát thông minh.
-
-https://private-user-images.githubusercontent.com/83055338/547056448-e7b031ff-d6f5-4468-bcca-5726b6fecb5c.mp4
-
-🌟 Nhiều hình thức triển khai hơn đang chờ bạn khám phá!
 
 ## 📦 Cài đặt
 

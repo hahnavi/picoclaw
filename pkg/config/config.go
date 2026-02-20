@@ -54,6 +54,7 @@ type Config struct {
 	mu        sync.RWMutex
 }
 
+// AgentsConfig holds agent configuration.
 type AgentsConfig struct {
 	Defaults AgentDefaults `json:"defaults"`
 }
@@ -79,6 +80,7 @@ type AgentDefaults struct {
 	BootstrapMaxChars      int                    `json:"bootstrap_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_MAX_CHARS"`
 	BootstrapTotalMaxChars int                    `json:"bootstrap_total_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_TOTAL_MAX_CHARS"`
 	ContextPruning         ContextPruningConfig   `json:"context_pruning"`
+	ContextWindow          int                    `json:"contextWindow" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_WINDOW"`
 }
 
 type ChannelsConfig struct {
@@ -189,7 +191,7 @@ func DefaultConfig() *Config {
 				Temperature:            0.7,
 				MaxToolIterations:      20,
 				BootstrapMaxChars:      20000,
-				BootstrapTotalMaxChars: 24000,
+				BootstrapTotalMaxChars: 150000,
 				ContextPruning: ContextPruningConfig{
 					Mode:                 "off",
 					TTLMinutes:           60,
@@ -300,6 +302,7 @@ func SaveConfig(path string, cfg *Config) error {
 func (c *Config) WorkspacePath() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	// Use the workspace from Defaults (still needed for backward compatibility during migration)
 	return expandHome(c.Agents.Defaults.Workspace)
 }
 
@@ -370,47 +373,21 @@ func (c *Config) CompareHotReloadable(other *Config) []string {
 
 	var changed []string
 
-	// Compare model
+	// Compare agents defaults
 	if c.Agents.Defaults.Model != other.Agents.Defaults.Model {
-		changed = append(changed, "model")
+		changed = append(changed, "agents.defaults.model")
 	}
-
-	// Compare max_tokens
 	if c.Agents.Defaults.MaxTokens != other.Agents.Defaults.MaxTokens {
-		changed = append(changed, "max_tokens")
+		changed = append(changed, "agents.defaults.max_tokens")
 	}
-
-	// Compare temperature
 	if c.Agents.Defaults.Temperature != other.Agents.Defaults.Temperature {
-		changed = append(changed, "temperature")
+		changed = append(changed, "agents.defaults.temperature")
 	}
-
-	// Compare bootstrap config
 	if c.Agents.Defaults.BootstrapMaxChars != other.Agents.Defaults.BootstrapMaxChars {
-		changed = append(changed, "bootstrap_max_chars")
+		changed = append(changed, "agents.defaults.bootstrap_max_chars")
 	}
 	if c.Agents.Defaults.BootstrapTotalMaxChars != other.Agents.Defaults.BootstrapTotalMaxChars {
-		changed = append(changed, "bootstrap_total_max_chars")
-	}
-
-	// Compare context pruning config
-	if c.Agents.Defaults.ContextPruning.Mode != other.Agents.Defaults.ContextPruning.Mode {
-		changed = append(changed, "context_pruning")
-	}
-	if c.Agents.Defaults.ContextPruning.TTLMinutes != other.Agents.Defaults.ContextPruning.TTLMinutes {
-		changed = append(changed, "context_pruning")
-	}
-	if c.Agents.Defaults.ContextPruning.KeepLastAssistants != other.Agents.Defaults.ContextPruning.KeepLastAssistants {
-		changed = append(changed, "context_pruning")
-	}
-	if c.Agents.Defaults.ContextPruning.SoftTrimRatio != other.Agents.Defaults.ContextPruning.SoftTrimRatio {
-		changed = append(changed, "context_pruning")
-	}
-	if c.Agents.Defaults.ContextPruning.HardClearRatio != other.Agents.Defaults.ContextPruning.HardClearRatio {
-		changed = append(changed, "context_pruning")
-	}
-	if c.Agents.Defaults.ContextPruning.MinPrunableToolChars != other.Agents.Defaults.ContextPruning.MinPrunableToolChars {
-		changed = append(changed, "context_pruning")
+		changed = append(changed, "agents.defaults.bootstrap_total_max_chars")
 	}
 
 	// Compare tools config (web search providers)

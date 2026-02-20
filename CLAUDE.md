@@ -56,7 +56,7 @@ go test -v ./pkg/<package> -run TestFunctionName
 
 ## Architecture Overview
 
-PicoClaw is an ultra-lightweight AI assistant written in Go, designed to run on resource-constrained hardware (<10MB RAM). The architecture follows a message-bus pattern with pluggable channels and tools.
+PicoClaw is an ultra-lightweight AI assistant written in Go, designed to run on resource-constrained hardware with minimal resource footprint. The architecture follows a message-bus pattern with pluggable channels and tools.
 
 ### Core Components
 
@@ -97,6 +97,8 @@ pkg/
 │   └── service.go            # Periodic task execution (HEARTBEAT.md)
 ├── logger/
 │   └── logger.go             # Structured JSON logging
+├── markdown/
+│   └── frontmatter.go        # Markdown frontmatter parsing with YAML support
 ├── providers/
 │   ├── types.go              # LLMProvider interface, Message/ToolCall types
 │   └── [providers]           # http_provider.go (handles: openai, groq, openrouter, zhipu, vllm, gemini, nvidia, ollama, moonshot, shengsuanyun, deepseek), codex_provider.go, codex_cli_provider.go, github_copilot_provider.go
@@ -117,6 +119,7 @@ pkg/
 │   ├── subagent.go           # subagent (sync subagent execution)
 │   ├── message.go            # message (send messages to channels)
 │   ├── cron.go               # cron tool for scheduling
+│   ├── memory.go             # memory_read, memory_write, memory_append (per-user memory)
 │   └── [hardware]            # i2c.go, spi.go (Linux-only)
 ├── reload/
 │   ├── watcher.go            # File watching with fsnotify for hot reload
@@ -293,7 +296,8 @@ Environment variables override JSON config using the pattern `PICOCLAW_<SECTION>
 ```
 ~/.picoclaw/workspace/
 ├── sessions/          # Conversation history (JSON files per session)
-├── memory/            # Long-term memory (MEMORY.md)
+├── memory/            # Long-term memory (MEMORY.md) - shared for CLI mode
+│   └── users/         # Per-user memory for Discord users
 ├── state/             # Persistent state (last channel, etc.)
 ├── cron/              # Scheduled jobs database (jobs.json)
 ├── skills/            # User-installed skills (workspace-level)
@@ -370,6 +374,7 @@ func (c *MyChannel) Stop() error { ... }
 - **Device monitoring**: On Linux, the devices service can monitor USB hotplug events when `devices.monitor_usb` is enabled in config. Events are published to the message bus and can trigger agent actions.
 - **Structured logging**: The logger package outputs structured JSON logs with configurable log levels (DEBUG, INFO, WARN, ERROR, FATAL). All logs include timestamp, level, component, and optional fields.
 - **AGENTS.md symlink**: The root `AGENTS.md` is symlinked to `CLAUDE.md`, which means agent behavior guidance is loaded from the same file that guides Claude Code development.
+- **Per-User Memory**: Discord users have isolated memory directories at `workspace/memory/users/<USER_ID>/`, while CLI mode uses shared `workspace/memory/`. The memory tools (`memory_read`, `memory_write`, `memory_append`) automatically route to the correct location based on the current user context.
 
 ## Embedded Workspace
 
@@ -382,3 +387,13 @@ var embeddedFiles embed.FS
 ```
 
 When the binary first runs, it extracts these embedded files to the user's workspace directory (`~/.picoclaw/workspace`). This ensures every installation has the default AGENTS.md, IDENTITY.md, SOUL.md, and other essential configuration files. The `make generate` command processes the `//go:generate` directive to copy the workspace files before building.
+
+### Embedded Workspace Templates
+
+The embedded workspace includes default templates:
+- **AGENTS.md**: Agent behavior guide with frontmatter metadata
+- **TOOLS.md**: Local tool notes template
+- **HEARTBEAT.md**: Periodic task template
+- **IDENTITY.md**: Agent identity template
+- **SOUL.md**: Agent soul template
+- **USER.md**: User preferences template

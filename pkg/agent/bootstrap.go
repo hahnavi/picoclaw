@@ -11,6 +11,20 @@ import (
 	"github.com/sipeed/picoclaw/pkg/logger"
 )
 
+// SessionType defines the type of session for bootstrap filtering.
+type SessionType string
+
+const (
+	// SessionTypeMain is a regular user session (full bootstrap)
+	SessionTypeMain SessionType = "main"
+	// SessionTypeCron is a scheduled task session (minimal bootstrap, no memory)
+	SessionTypeCron SessionType = "cron"
+	// SessionTypeSubagent is a subagent session (minimal bootstrap)
+	SessionTypeSubagent SessionType = "subagent"
+	// SessionTypeHeartbeat is a heartbeat session (HEARTBEAT.md only)
+	SessionTypeHeartbeat SessionType = "heartbeat"
+)
+
 const (
 	// DEFAULT_BOOTSTRAP_MAX_CHARS is the default maximum size for a single bootstrap file.
 	DEFAULT_BOOTSTRAP_MAX_CHARS = 20_000
@@ -41,6 +55,7 @@ func DefaultBootstrapConfig() BootstrapConfig {
 
 // trimBootstrapContent truncates a bootstrap file's content while preserving
 // the most important parts (head and tail).
+// Returns detailed truncation information in the marker message.
 func trimBootstrapContent(content string, filename string, maxChars int) string {
 	if len(content) <= maxChars {
 		return content
@@ -67,6 +82,12 @@ func trimBootstrapContent(content string, filename string, maxChars int) string 
 		tail = content[tailStart:]
 	}
 
+	// Enhanced truncation marker with file details
+	marker := fmt.Sprintf(
+		"\n\n[...truncated %s: kept %d+%d chars of %d, read %s for full content...]\n\n",
+		filename, headSize, tailSize, len(content), filename,
+	)
+
 	logger.DebugCF("agent", "Bootstrap file truncated",
 		map[string]interface{}{
 			"filename":         filename,
@@ -78,21 +99,60 @@ func trimBootstrapContent(content string, filename string, maxChars int) string 
 		})
 
 	if tail != "" {
-		return head + "\n\n[...truncated...]\n\n" + tail
+		return head + marker + tail
 	}
-	return head + "\n[...truncated...]"
+	return head + "\n[...truncated " + filename + "...]"
+}
+
+// getBootstrapFilesForSession returns the list of bootstrap files to load
+// based on the session type.
+func getBootstrapFilesForSession(sessionType SessionType) []string {
+	switch sessionType {
+	case SessionTypeMain:
+		// Full bootstrap for main sessions
+		return []string{
+			"AGENTS.md",
+			"SOUL.md",
+			"TOOLS.md",
+			"IDENTITY.md",
+			"USER.md",
+			"HEARTBEAT.md",
+		}
+	case SessionTypeCron, SessionTypeSubagent:
+		// Minimal bootstrap for cron/subagent sessions (no MEMORY.md for security)
+		return []string{
+			"AGENTS.md",
+			"TOOLS.md",
+		}
+	case SessionTypeHeartbeat:
+		// Only HEARTBEAT.md for heartbeat sessions
+		return []string{
+			"HEARTBEAT.md",
+		}
+	default:
+		// Default to full bootstrap
+		return []string{
+			"AGENTS.md",
+			"SOUL.md",
+			"TOOLS.md",
+			"IDENTITY.md",
+			"USER.md",
+			"HEARTBEAT.md",
+		}
+	}
 }
 
 // LoadBootstrapFiles loads bootstrap files with truncation applied.
 // Returns the concatenated content of all bootstrap files, respecting both
-// per-file and total budget limits.
+// per-file and total budget limits. Uses session-based filtering.
 func LoadBootstrapFiles(workspace string, config BootstrapConfig) string {
-	bootstrapFiles := []string{
-		"AGENTS.md",
-		"SOUL.md",
-		"USER.md",
-		"IDENTITY.md",
-	}
+	return LoadBootstrapFilesForSession(workspace, config, SessionTypeMain)
+}
+
+// LoadBootstrapFilesForSession loads bootstrap files with session-based filtering.
+// This allows different bootstrap content for main sessions, cron tasks, and subagents.
+func LoadBootstrapFilesForSession(workspace string, config BootstrapConfig, sessionType SessionType) string {
+	bootstrapFiles := getBootstrapFilesForSession(sessionType)
 
 	var result string
 	totalUsed := 0
@@ -105,6 +165,12 @@ func LoadBootstrapFiles(workspace string, config BootstrapConfig) string {
 		filePath := filepath.Join(workspace, filename)
 		data, err := os.ReadFile(filePath)
 		if err != nil {
+			// Log missing file but continue
+			logger.DebugCF("agent", "Bootstrap file not found, skipping",
+				map[string]interface{}{
+					"filename": filename,
+					"path":     filePath,
+				})
 			continue
 		}
 
@@ -142,10 +208,11 @@ func LoadBootstrapFiles(workspace string, config BootstrapConfig) string {
 	if len(loadedFiles) > 0 {
 		logger.DebugCF("agent", "Bootstrap files loaded",
 			map[string]interface{}{
-				"files_loaded":      loadedFiles,
-				"total_chars":       totalUsed,
-				"total_limit":       config.TotalMaxChars,
-				"per_file_limit":    perFileLimit,
+				"session_type":   sessionType,
+				"files_loaded":   loadedFiles,
+				"total_chars":    totalUsed,
+				"total_limit":    config.TotalMaxChars,
+				"per_file_limit": perFileLimit,
 			})
 	}
 

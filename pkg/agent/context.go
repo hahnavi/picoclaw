@@ -63,6 +63,12 @@ func (cb *ContextBuilder) ClearUserContext() {
 	cb.currentUserID = ""
 }
 
+// GetCurrentUserID returns the current user ID for memory operations.
+// Returns empty string if no user context is set (shared memory mode).
+func (cb *ContextBuilder) GetCurrentUserID() string {
+	return cb.currentUserID
+}
+
 // getUserMemoryContext returns memory context for the current user.
 // If no user context is set, returns the shared memory context.
 func (cb *ContextBuilder) getUserMemoryContext() string {
@@ -79,8 +85,24 @@ func (cb *ContextBuilder) getBotName() string {
 	content := string(data)
 	lines := strings.Split(content, "\n")
 
-	// Find "## Name" section
+	// Find name - support both "## Name" header and "- **Name:**" list formats
 	for i, line := range lines {
+		// List format: "- **Name:** Value"
+		if strings.Contains(line, "**Name:**") || strings.Contains(line, "**Name**") {
+			// Extract value after the colon or asterisk
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				nameValue := strings.TrimSpace(parts[1])
+				// Remove markdown formatting if present
+				nameValue = strings.TrimPrefix(nameValue, "**")
+				nameValue = strings.TrimSuffix(nameValue, "**")
+				nameValue = strings.TrimSpace(nameValue)
+				if nameValue != "" && !strings.HasPrefix(nameValue, "_(") {
+					return nameValue
+				}
+			}
+		}
+		// Header format: "## Name" followed by value on next line
 		if strings.Contains(line, "## Name") && i+1 < len(lines) {
 			nameLine := strings.TrimSpace(lines[i+1])
 			// Parse "BotName 🎭" format - extract first word
@@ -129,14 +151,27 @@ func (cb *ContextBuilder) getBotEmoji() string {
 	content := string(data)
 	lines := strings.Split(content, "\n")
 
-	// Find "## Name" section
+	// Find emoji - support both "## Emoji" header and "- **Emoji:**" list formats
 	for i, line := range lines {
-		if strings.Contains(line, "## Name") && i+1 < len(lines) {
-			nameLine := strings.TrimSpace(lines[i+1])
-			// Extract emoji (everything after the name)
-			parts := strings.Fields(nameLine)
-			if len(parts) > 1 {
-				return strings.TrimPrefix(nameLine, parts[0]+" ")
+		// List format: "- **Emoji:** Value"
+		if strings.Contains(line, "**Emoji:**") || strings.Contains(line, "**Emoji**") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				emojiValue := strings.TrimSpace(parts[1])
+				// Remove markdown formatting if present
+				emojiValue = strings.TrimPrefix(emojiValue, "**")
+				emojiValue = strings.TrimSuffix(emojiValue, "**")
+				emojiValue = strings.TrimSpace(emojiValue)
+				if emojiValue != "" && !strings.HasPrefix(emojiValue, "_(") {
+					return emojiValue
+				}
+			}
+		}
+		// Header format: "## Emoji" followed by value on next line
+		if strings.Contains(line, "## Emoji") && i+1 < len(lines) {
+			emojiLine := strings.TrimSpace(lines[i+1])
+			if emojiLine != "" && !strings.HasPrefix(emojiLine, "_(") {
+				return emojiLine
 			}
 		}
 	}
@@ -205,7 +240,7 @@ Your workspace is at: %s
 
 2. **Be helpful and accurate** - When using tools, briefly explain what you're doing.
 
-3. **Memory** - When remembering something, write to %s`,
+3. **Memory** - For reading memory, use memory_read. For writing, use memory_write. For daily notes, use memory_append. Memory is stored at %s`,
 		botName, botEmoji, strings.ToLower(botName), personalitySection,
 		now, runtime, workspacePath, memoryPathDisplay, workspacePath, workspacePath, toolsSection, memoryPathDisplay)
 }
@@ -254,7 +289,7 @@ The following skills extend your capabilities. To use a skill, read its SKILL.md
 %s`, skillsSummary))
 	}
 
-	// Memory is NOT auto-injected - use the memory_get tool to load memory on demand
+	// Memory is NOT auto-injected - use the memory_read tool to load memory on demand
 	// This reduces token usage when memory is not needed for the current request
 
 	// Join with "---" separator

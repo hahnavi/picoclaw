@@ -3,7 +3,7 @@
 
 <h1>PicoClaw: 基于Go语言的超高效 AI 助手</h1>
 
-<h3>10$硬件 · 10MB内存 · 1秒启动 · 皮皮虾，我们走！</h3>
+<h3>极低内存 · 1秒启动 · 皮皮虾，我们走！</h3>
 
   <p>
     <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go&logoColor=white" alt="Go">
@@ -21,7 +21,7 @@
 
 🦐 **PicoClaw** 是一个受 [nanobot](https://github.com/HKUDS/nanobot) 启发的超轻量级个人 AI 助手。它采用 **Go 语言** 从零重构，经历了一个“自举”过程——即由 AI Agent 自身驱动了整个架构迁移和代码优化。
 
-⚡️ **极致轻量**：可在 **10 美元** 的硬件上运行，内存占用 **<10MB**。这意味着比 OpenClaw 节省 99% 的内存，比 Mac mini 便宜 98%！
+⚡️ **极致轻量**：以极低的资源占用运行，内存占用极低。这意味着显著节省内存！
 
 <table align="center">
 <tr align="center">
@@ -55,13 +55,13 @@
 2026-02-13 🎉 **PicoClaw 在 4 天内突破 5000 Stars！** 感谢社区的支持！由于正值中国春节假期，PR 和 Issue 涌入较多，我们正在利用这段时间敲定 **项目路线图 (Roadmap)** 并组建 **开发者群组**，以便加速 PicoClaw 的开发。
 🚀 **行动号召：** 请在 GitHub Discussions 中提交您的功能请求 (Feature Requests)。我们将在接下来的周会上进行审查和优先级排序。
 
-2026-02-09 🎉 **PicoClaw 正式发布！** 仅用 1 天构建，旨在将 AI Agent 带入 10 美元硬件与 <10MB 内存的世界。🦐 PicoClaw（皮皮虾），我们走！
+2026-02-09 🎉 **PicoClaw 正式发布！** 仅用 1 天构建，以极低的资源占用带来 AI Agent 体验。🦐 PicoClaw（皮皮虾），我们走！
 
 ## ✨ 特性
 
-🪶 **超轻量级**: 核心功能内存占用 <10MB — 比 Clawdbot 小 99%。
+🪶 **超轻量级**: 内存占用极低 — 比 Clawdbot 显著更小。
 
-💰 **极低成本**: 高效到足以在 10 美元的硬件上运行 — 比 Mac mini 便宜 98%。
+💰 **高效资源使用**: 设计为在占用极少资源的同时保持完整功能。
 
 ⚡️ **闪电启动**: 启动速度快 400 倍，即使在 0.6GHz 单核处理器上也能在 1 秒内启动。
 
@@ -72,9 +72,9 @@
 |  | OpenClaw | NanoBot | **PicoClaw** |
 | --- | --- | --- | --- |
 | **语言** | TypeScript | Python | **Go** |
-| **RAM** | >1GB | >100MB | **< 10MB** |
+| **RAM** | >1GB | >100MB | **极低占用** |
 | **启动时间**</br>(0.8GHz core) | >500s | >30s | **<1s** |
-| **成本** | Mac Mini $599 | 大多数 Linux 开发板 ~$50 | **任意 Linux 开发板**</br>**低至 $10** |
+| **成本** | Mac Mini $599 | 大多数 Linux SBC ~$50 | **高效运行**</br>**极低资源占用** |
 
 <img src="assets/compare.jpg" alt="PicoClaw" width="512">
 
@@ -116,18 +116,6 @@ termux-chroot ./picoclaw-linux-arm64 onboard
 
 
 
-
-### 🐜 创新的低占用部署
-
-PicoClaw 几乎可以部署在任何 Linux 设备上！
-
-* $9.9 [LicheeRV-Nano](https://www.aliexpress.com/item/1005006519668532.html) E(网口) 或 W(WiFi6) 版本，用于极简家庭助手。
-* $30~50 [NanoKVM](https://www.aliexpress.com/item/1005007369816019.html)，或 $100 [NanoKVM-Pro](https://www.aliexpress.com/item/1005010048471263.html)，用于自动化服务器运维。
-* $50 [MaixCAM](https://www.aliexpress.com/item/1005008053333693.html) 或 $100 [MaixCAM2](https://www.kickstarter.com/projects/zepan/maixcam2-build-your-next-gen-4k-ai-camera)，用于智能监控。
-
-[https://private-user-images.githubusercontent.com/83055338/547056448-e7b031ff-d6f5-4468-bcca-5726b6fecb5c.mp4](https://private-user-images.githubusercontent.com/83055338/547056448-e7b031ff-d6f5-4468-bcca-5726b6fecb5c.mp4)
-
-🌟 更多部署案例敬请期待！
 
 ## 📦 安装
 

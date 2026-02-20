@@ -3,7 +3,7 @@
 
 <h1>PicoClaw: Go で書かれた超効率 AI アシスタント</h1>
 
-<h3>$10 ハードウェア · 10MB RAM · 1秒起動 · 行くぜ、シャコ！</h3>
+<h3>最小メモリ · 1秒起動 · 行くぜ、シャコ！</h3>
 <h3></h3>
 
 <p>
@@ -21,7 +21,7 @@
 
 🦐 PicoClaw は [nanobot](https://github.com/HKUDS/nanobot) にインスパイアされた超軽量パーソナル AI アシスタントです。Go でゼロからリファクタリングされ、AI エージェント自身がアーキテクチャの移行とコード最適化を推進するセルフブートストラッピングプロセスで構築されました。
 
-⚡️ $10 のハードウェアで 10MB 未満の RAM で動作：OpenClaw より 99% 少ないメモリ、Mac mini より 98% 安い！
+⚡️ 最小限のリソースで動作：OpenClaw より大幅に少ないメモリ！
 
 <table align="center">
   <tr align="center">
@@ -39,13 +39,13 @@
 </table>
 
 ## 📢 ニュース
-2026-02-09 🎉 PicoClaw リリース！$10 ハードウェアで 10MB 未満の RAM で動く AI エージェントを 1 日で構築。🦐 行くぜ、シャコ！
+2026-02-09 🎉 PicoClaw リリース！最小限のリソースで動く AI エージェントを 1 日で構築。🦐 行くぜ、シャコ！
 
 ## ✨ 特徴
 
-🪶 **超軽量**: メモリフットプリント 10MB 未満 — Clawdbot のコア機能より 99% 小さい。
+🪶 **超軽量**: メモリフットプリント最小 — Clawdbot のコア機能より大幅に小さい。
 
-💰 **最小コスト**: $10 ハードウェアで動作 — Mac mini より 98% 安い。
+💰 **効率的なリソース使用**: 最小限のリソースで完全な機能を維持するように設計。
 
 ⚡️ **超高速**: 起動時間 400 倍高速、0.6GHz シングルコアでも 1 秒で起動。
 
@@ -56,9 +56,9 @@
 |  | OpenClaw  | NanoBot | **PicoClaw** |
 | --- | --- | --- |--- |
 | **言語** | TypeScript | Python | **Go** |
-| **RAM** | >1GB |>100MB| **< 10MB** |
+| **RAM** | >1GB |>100MB| **最小フットプリント** |
 | **起動時間**</br>(0.8GHz コア) | >500秒 | >30秒 |  **<1秒** |
-| **コスト** | Mac Mini 599$ | 大半の Linux SBC </br>~50$ |**あらゆる Linux ボード**</br>**最安 10$** |
+| **コスト** | Mac Mini 599$ | 大半の Linux SBC </br>~50$ |**効率的な運用**</br>**最小限のリソース** |
 <img src="assets/compare.jpg" alt="PicoClaw" width="512">
 
 
@@ -81,17 +81,6 @@
     <td align="center">発見 · インサイト · トレンド</td>
   </tr>
 </table>
-
-### 🐜 革新的な省フットプリントデプロイ
-PicoClaw はほぼすべての Linux デバイスにデプロイできます！
-
-- $9.9 [LicheeRV-Nano](https://www.aliexpress.com/item/1005006519668532.html) E(Ethernet) または W(WiFi6) バージョン、最小ホームアシスタントに
-- $30~50 [NanoKVM](https://www.aliexpress.com/item/1005007369816019.html) または $100 [NanoKVM-Pro](https://www.aliexpress.com/item/1005010048471263.html) サーバー自動メンテナンスに
-- $50 [MaixCAM](https://www.aliexpress.com/item/1005008053333693.html) または $100 [MaixCAM2](https://www.kickstarter.com/projects/zepan/maixcam2-build-your-next-gen-4k-ai-camera) スマート監視に
-
-https://private-user-images.githubusercontent.com/83055338/547056448-e7b031ff-d6f5-4468-bcca-5726b6fecb5c.mp4
-
-🌟 もっと多くのデプロイ事例が待っています！
 
 ## 📦 インストール
 

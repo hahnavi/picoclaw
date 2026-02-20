@@ -24,36 +24,21 @@ func TestDefaultConfig_WorkspacePath(t *testing.T) {
 	}
 }
 
-// TestDefaultConfig_Model verifies model is set
-func TestDefaultConfig_Model(t *testing.T) {
+// TestDefaultConfig_AgentDefaults verifies agent defaults are configured
+func TestDefaultConfig_AgentDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
 	if cfg.Agents.Defaults.Model == "" {
 		t.Error("Model should not be empty")
 	}
-}
-
-// TestDefaultConfig_MaxTokens verifies max tokens has default value
-func TestDefaultConfig_MaxTokens(t *testing.T) {
-	cfg := DefaultConfig()
 
 	if cfg.Agents.Defaults.MaxTokens == 0 {
 		t.Error("MaxTokens should not be zero")
 	}
-}
-
-// TestDefaultConfig_MaxToolIterations verifies max tool iterations has default value
-func TestDefaultConfig_MaxToolIterations(t *testing.T) {
-	cfg := DefaultConfig()
 
 	if cfg.Agents.Defaults.MaxToolIterations == 0 {
 		t.Error("MaxToolIterations should not be zero")
 	}
-}
-
-// TestDefaultConfig_Temperature verifies temperature has default value
-func TestDefaultConfig_Temperature(t *testing.T) {
-	cfg := DefaultConfig()
 
 	if cfg.Agents.Defaults.Temperature == 0 {
 		t.Error("Temperature should not be zero")

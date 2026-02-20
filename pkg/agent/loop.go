@@ -30,6 +30,101 @@ import (
 	"github.com/sipeed/picoclaw/pkg/utils"
 )
 
+// GetDefaultContextWindow returns the default context window size for a given model.
+// This is a fallback when ContextWindow is not explicitly configured.
+func GetDefaultContextWindow(model string) int {
+	// Convert to lowercase for case-insensitive matching
+	lowerModel := strings.ToLower(model)
+
+	// GLM models (Zhipu AI)
+	if strings.Contains(lowerModel, "glm") {
+		if strings.Contains(lowerModel, "glm-4") {
+			return 128000
+		}
+		if strings.Contains(lowerModel, "glm-3") {
+			return 128000
+		}
+		return 128000 // Default for GLM models
+	}
+
+	// OpenAI models
+	if strings.Contains(lowerModel, "gpt-4") {
+		if strings.Contains(lowerModel, "gpt-4-turbo") || strings.Contains(lowerModel, "gpt-4-1106") || strings.Contains(lowerModel, "gpt-4-0125") {
+			return 128000
+		}
+		if strings.Contains(lowerModel, "gpt-4-32k") {
+			return 32000
+		}
+		return 8192 // GPT-4 base
+	}
+	if strings.Contains(lowerModel, "gpt-3.5") {
+		if strings.Contains(lowerModel, "gpt-3.5-turbo-16k") {
+			return 16000
+		}
+		return 4096 // GPT-3.5-turbo base
+	}
+
+	// Claude models
+	if strings.Contains(lowerModel, "claude-3") {
+		return 200000
+	}
+	if strings.Contains(lowerModel, "claude-2") {
+		return 100000
+	}
+
+	// Gemini models
+	if strings.Contains(lowerModel, "gemini") {
+		if strings.Contains(lowerModel, "gemini-2.0") || strings.Contains(lowerModel, "gemini-1.5-pro") {
+			return 1000000 // 1M tokens for Gemini 1.5 Pro
+		}
+		if strings.Contains(lowerModel, "gemini-1.5") {
+			return 1000000
+		}
+		return 32000
+	}
+
+	// DeepSeek models
+	if strings.Contains(lowerModel, "deepseek") {
+		if strings.Contains(lowerModel, "deepseek-r1") || strings.Contains(lowerModel, "deepseek-v3") {
+			return 64000
+		}
+		return 32000
+	}
+
+	// Qwen models
+	if strings.Contains(lowerModel, "qwen") {
+		if strings.Contains(lowerModel, "qwen-2.5") {
+			return 128000
+		}
+		return 32000
+	}
+
+	// Llama models
+	if strings.Contains(lowerModel, "llama") {
+		if strings.Contains(lowerModel, "llama-3") {
+			if strings.Contains(lowerModel, "llama-3.1") {
+				return 128000
+			}
+			if strings.Contains(lowerModel, "llama-3.2") {
+				return 128000
+			}
+			return 8192
+		}
+		return 4096
+	}
+
+	// Mistral models
+	if strings.Contains(lowerModel, "mistral") || strings.Contains(lowerModel, "mixtral") {
+		if strings.Contains(lowerModel, "mixtral") {
+			return 32000
+		}
+		return 32000
+	}
+
+	// Default fallback
+	return 32000
+}
+
 type AgentLoop struct {
 	bus            *bus.MessageBus
 	provider       providers.LLMProvider
@@ -63,7 +158,8 @@ type processOptions struct {
 
 // createToolRegistry creates a tool registry with common tools.
 // This is shared between main agent and subagents.
-func createToolRegistry(workspace string, restrict bool, cfg *config.Config, msgBus *bus.MessageBus) *tools.ToolRegistry {
+// If contextBuilder is provided, memory tools will be registered.
+func createToolRegistry(workspace string, restrict bool, cfg *config.Config, msgBus *bus.MessageBus, contextBuilder *ContextBuilder) *tools.ToolRegistry {
 	registry := tools.NewToolRegistry()
 
 	// File system tools
@@ -107,6 +203,13 @@ func createToolRegistry(workspace string, restrict bool, cfg *config.Config, msg
 	})
 	registry.Register(messageTool)
 
+	// Memory tools - only if contextBuilder is provided
+	if contextBuilder != nil {
+		registry.Register(tools.NewMemoryReadTool(workspace, contextBuilder))
+		registry.Register(tools.NewMemoryWriteTool(workspace, contextBuilder))
+		registry.Register(tools.NewMemoryAppendTool(workspace, contextBuilder))
+	}
+
 	return registry
 }
 
@@ -116,12 +219,29 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 
 	restrict := cfg.Agents.Defaults.RestrictToWorkspace
 
-	// Create tool registry for main agent
-	toolsRegistry := createToolRegistry(workspace, restrict, cfg, msgBus)
+	// Initialize bootstrap config from config file
+	bootstrapConfig := BootstrapConfig{
+		MaxChars:      cfg.Agents.Defaults.BootstrapMaxChars,
+		TotalMaxChars: cfg.Agents.Defaults.BootstrapTotalMaxChars,
+	}
+	if bootstrapConfig.MaxChars == 0 {
+		bootstrapConfig.MaxChars = DEFAULT_BOOTSTRAP_MAX_CHARS
+	}
+	if bootstrapConfig.TotalMaxChars == 0 {
+		bootstrapConfig.TotalMaxChars = DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS
+	}
+
+	// Create context builder first (needed for memory tools)
+	contextBuilder := NewContextBuilder(workspace)
+	contextBuilder.SetBootstrapConfig(bootstrapConfig)
+
+	// Create tool registry for main agent (with context builder for memory tools)
+	toolsRegistry := createToolRegistry(workspace, restrict, cfg, msgBus, contextBuilder)
+	contextBuilder.SetToolsRegistry(toolsRegistry)
 
 	// Create subagent manager with its own tool registry
 	subagentManager := tools.NewSubagentManager(provider, cfg.Agents.Defaults.Model, workspace, msgBus)
-	subagentTools := createToolRegistry(workspace, restrict, cfg, msgBus)
+	subagentTools := createToolRegistry(workspace, restrict, cfg, msgBus, contextBuilder)
 	// Subagent doesn't need spawn/subagent tools to avoid recursion
 	subagentManager.SetTools(subagentTools)
 
@@ -137,18 +257,6 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 
 	// Create state manager for atomic state persistence
 	stateManager := state.NewManager(workspace)
-
-	// Initialize bootstrap config from config file
-	bootstrapConfig := BootstrapConfig{
-		MaxChars:      cfg.Agents.Defaults.BootstrapMaxChars,
-		TotalMaxChars: cfg.Agents.Defaults.BootstrapTotalMaxChars,
-	}
-	if bootstrapConfig.MaxChars == 0 {
-		bootstrapConfig.MaxChars = DEFAULT_BOOTSTRAP_MAX_CHARS
-	}
-	if bootstrapConfig.TotalMaxChars == 0 {
-		bootstrapConfig.TotalMaxChars = DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS
-	}
 
 	// Initialize pruning config from config file
 	pruningConfig := PruningConfig{
@@ -176,13 +284,13 @@ func NewAgentLoop(cfg *config.Config, msgBus *bus.MessageBus, provider providers
 		pruningConfig.TTL = 1 * time.Hour
 	}
 
-	// Create context builder and set tools registry
-	contextBuilder := NewContextBuilder(workspace)
-	contextBuilder.SetToolsRegistry(toolsRegistry)
-	contextBuilder.SetBootstrapConfig(bootstrapConfig)
-
 	// Validate context window size
-	contextWindow := cfg.Agents.Defaults.MaxTokens
+	// Use ContextWindow if explicitly set, otherwise use model-specific defaults
+	contextWindow := cfg.Agents.Defaults.ContextWindow
+	if contextWindow == 0 {
+		// Use model-specific context window defaults
+		contextWindow = GetDefaultContextWindow(cfg.Agents.Defaults.Model)
+	}
 	EvaluateContextWindowGuard(contextWindow)
 
 	return &AgentLoop{
@@ -1170,13 +1278,29 @@ func (al *AgentLoop) UpdateModel(model string) error {
 	return nil
 }
 
-// UpdateContextWindow changes the max tokens dynamically.
-func (al *AgentLoop) UpdateContextWindow(maxTokens int) error {
-	if maxTokens <= 0 {
-		return fmt.Errorf("max_tokens must be positive")
+// UpdateContextWindow changes the context window size dynamically.
+func (al *AgentLoop) UpdateContextWindow(contextWindow int) error {
+	if contextWindow <= 0 {
+		return fmt.Errorf("context_window must be positive")
 	}
-	al.contextWindow = maxTokens
-	logger.InfoCF("agent", "Context window updated", map[string]interface{}{"max_tokens": maxTokens})
+	al.contextWindow = contextWindow
+	logger.InfoCF("agent", "Context window updated", map[string]interface{}{"context_window": contextWindow})
+	return nil
+}
+
+// UpdateModelAndContextWindow changes the model and recalculates context window.
+func (al *AgentLoop) UpdateModelAndContextWindow(model string) error {
+	if model == "" {
+		return fmt.Errorf("model cannot be empty")
+	}
+	al.model = model
+	// Recalculate context window based on new model
+	contextWindow := GetDefaultContextWindow(model)
+	al.contextWindow = contextWindow
+	logger.InfoCF("agent", "Model and context window updated", map[string]interface{}{
+		"model":          model,
+		"context_window": contextWindow,
+	})
 	return nil
 }
 
@@ -1220,7 +1344,7 @@ func (al *AgentLoop) ReloadTools(cfg *config.Config) error {
 	restrict := cfg.Agents.Defaults.RestrictToWorkspace
 
 	// Create new tool registry with updated config
-	newTools := createToolRegistry(al.workspace, restrict, cfg, al.bus)
+	newTools := createToolRegistry(al.workspace, restrict, cfg, al.bus, al.contextBuilder)
 
 	// Get channel manager for message tool callback
 	if al.channelManager != nil {
@@ -1235,7 +1359,7 @@ func (al *AgentLoop) ReloadTools(cfg *config.Config) error {
 
 	// Create subagent manager with new tools
 	subagentManager := tools.NewSubagentManager(al.provider, cfg.Agents.Defaults.Model, al.workspace, al.bus)
-	subagentTools := createToolRegistry(al.workspace, restrict, cfg, al.bus)
+	subagentTools := createToolRegistry(al.workspace, restrict, cfg, al.bus, al.contextBuilder)
 	subagentManager.SetTools(subagentTools)
 
 	// Register spawn tool (for main agent)
