@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -100,7 +101,8 @@ func (ms *MemoryStore) AppendToday(content string) error {
 // GetRecentDailyNotes returns daily notes from the last N days.
 // Contents are joined with "---" separator.
 func (ms *MemoryStore) GetRecentDailyNotes(days int) string {
-	var notes []string
+	var sb strings.Builder
+	first := true
 
 	for i := 0; i < days; i++ {
 		date := time.Now().AddDate(0, 0, -i)
@@ -109,23 +111,15 @@ func (ms *MemoryStore) GetRecentDailyNotes(days int) string {
 		filePath := filepath.Join(ms.memoryDir, monthDir, dateStr+".md")
 
 		if data, err := os.ReadFile(filePath); err == nil {
-			notes = append(notes, string(data))
+			if !first {
+				sb.WriteString("\n\n---\n\n")
+			}
+			sb.Write(data)
+			first = false
 		}
 	}
 
-	if len(notes) == 0 {
-		return ""
-	}
-
-	// Join with separator
-	var result string
-	for i, note := range notes {
-		if i > 0 {
-			result += "\n\n---\n\n"
-		}
-		result += note
-	}
-	return result
+	return sb.String()
 }
 
 // getUserMemoryDir returns the user-specific memory directory.
@@ -232,40 +226,39 @@ func (ms *MemoryStore) AppendUserToday(userID string, content string) error {
 // If userID is empty, returns the base memory context.
 // Includes long-term memory and recent daily notes.
 func (ms *MemoryStore) GetUserMemoryContext(userID string) string {
-	var parts []string
-
 	// Long-term memory
 	longTerm := ms.ReadUserLongTerm(userID)
-	if longTerm != "" {
-		parts = append(parts, "## Long-term Memory\n\n"+longTerm)
-	}
-
-	// Recent daily notes (last 3 days)
 	recentNotes := ms.GetRecentDailyNotesForUser(userID, 3)
-	if recentNotes != "" {
-		parts = append(parts, "## Recent Daily Notes\n\n"+recentNotes)
-	}
 
-	if len(parts) == 0 {
+	if longTerm == "" && recentNotes == "" {
 		return ""
 	}
 
-	// Join parts with separator
-	var result string
-	for i, part := range parts {
-		if i > 0 {
-			result += "\n\n---\n\n"
-		}
-		result += part
+	var sb strings.Builder
+	sb.WriteString("# Memory\n\n")
+
+	if longTerm != "" {
+		sb.WriteString("## Long-term Memory\n\n")
+		sb.WriteString(longTerm)
 	}
-	return fmt.Sprintf("# Memory\n\n%s", result)
+
+	if recentNotes != "" {
+		if longTerm != "" {
+			sb.WriteString("\n\n---\n\n")
+		}
+		sb.WriteString("## Recent Daily Notes\n\n")
+		sb.WriteString(recentNotes)
+	}
+
+	return sb.String()
 }
 
 // GetRecentDailyNotesForUser returns daily notes from the last N days for a specific user.
 // If userID is empty, returns notes from the base directory.
 // Contents are joined with "---" separator.
 func (ms *MemoryStore) GetRecentDailyNotesForUser(userID string, days int) string {
-	var notes []string
+	var sb strings.Builder
+	first := true
 	baseDir := ms.getUserMemoryDir(userID)
 
 	for i := 0; i < days; i++ {
@@ -275,23 +268,15 @@ func (ms *MemoryStore) GetRecentDailyNotesForUser(userID string, days int) strin
 		filePath := filepath.Join(baseDir, monthDir, dateStr+".md")
 
 		if data, err := os.ReadFile(filePath); err == nil {
-			notes = append(notes, string(data))
+			if !first {
+				sb.WriteString("\n\n---\n\n")
+			}
+			sb.Write(data)
+			first = false
 		}
 	}
 
-	if len(notes) == 0 {
-		return ""
-	}
-
-	// Join with separator
-	var result string
-	for i, note := range notes {
-		if i > 0 {
-			result += "\n\n---\n\n"
-		}
-		result += note
-	}
-	return result
+	return sb.String()
 }
 
 // GetMemoryContext returns formatted memory context for the agent prompt.

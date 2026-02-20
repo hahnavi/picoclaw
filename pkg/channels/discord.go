@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -26,6 +27,8 @@ type DiscordChannel struct {
 	transcriber *voice.GroqTranscriber
 	ctx         context.Context
 	botUserID   string // Bot user ID for mention detection
+	typingMu    sync.Mutex
+	typingStop  map[string]chan struct{} // chatID → stop signal
 }
 
 func NewDiscordChannel(cfg config.DiscordConfig, bus *bus.MessageBus) (*DiscordChannel, error) {
@@ -42,6 +45,7 @@ func NewDiscordChannel(cfg config.DiscordConfig, bus *bus.MessageBus) (*DiscordC
 		config:      cfg,
 		transcriber: nil,
 		ctx:         context.Background(),
+		typingStop:  make(map[string]chan struct{}),
 	}, nil
 }
 
@@ -85,6 +89,14 @@ func (c *DiscordChannel) Stop(ctx context.Context) error {
 	logger.InfoC("discord", "Stopping Discord bot")
 	c.setRunning(false)
 
+	// Stop all typing goroutines before closing session
+	c.typingMu.Lock()
+	for chatID, stop := range c.typingStop {
+		close(stop)
+		delete(c.typingStop, chatID)
+	}
+	c.typingMu.Unlock()
+
 	if err := c.session.Close(); err != nil {
 		return fmt.Errorf("failed to close discord session: %w", err)
 	}
@@ -93,6 +105,8 @@ func (c *DiscordChannel) Stop(ctx context.Context) error {
 }
 
 func (c *DiscordChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
+	c.stopTyping(msg.ChatID)
+
 	if !c.IsRunning() {
 		return fmt.Errorf("discord bot not running")
 	}
@@ -296,13 +310,6 @@ func (c *DiscordChannel) handleMessage(s *discordgo.Session, m *discordgo.Messag
 		}
 	}
 
-	if err := c.session.ChannelTyping(m.ChannelID); err != nil {
-		logger.ErrorCF("discord", "Failed to send typing indicator", map[string]any{
-			"error": err.Error(),
-		})
-		// Don't return - typing indicator failure shouldn't block message processing
-	}
-
 	senderID := m.Author.ID
 	senderName := m.Author.Username
 	if m.Author.Discriminator != "" && m.Author.Discriminator != "0" {
@@ -392,6 +399,9 @@ func (c *DiscordChannel) handleMessage(s *discordgo.Session, m *discordgo.Messag
 		"channel_id":   m.ChannelID,
 		"is_dm":        fmt.Sprintf("%t", m.GuildID == ""),
 	}
+
+	// Start typing after all early returns — guaranteed to have a matching Send()
+	c.startTyping(m.ChannelID)
 
 	c.HandleMessage(senderID, m.ChannelID, content, mediaPaths, metadata)
 }
@@ -547,4 +557,50 @@ func (c *DiscordChannel) isUserAllowedByRoles(guildID, userID string, memberRole
 	}
 
 	return false
+}
+
+// startTyping starts a continuous typing indicator loop for the given chatID.
+// It stops any existing typing loop for that chatID before starting a new one.
+func (c *DiscordChannel) startTyping(chatID string) {
+	c.typingMu.Lock()
+	// Stop existing loop for this chatID if any
+	if stop, ok := c.typingStop[chatID]; ok {
+		close(stop)
+	}
+	stop := make(chan struct{})
+	c.typingStop[chatID] = stop
+	c.typingMu.Unlock()
+
+	go func() {
+		if err := c.session.ChannelTyping(chatID); err != nil {
+			logger.DebugCF("discord", "ChannelTyping error", map[string]interface{}{"chatID": chatID, "err": err})
+		}
+		ticker := time.NewTicker(8 * time.Second)
+		defer ticker.Stop()
+		timeout := time.After(5 * time.Minute)
+		for {
+			select {
+			case <-stop:
+				return
+			case <-timeout:
+				return
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+				if err := c.session.ChannelTyping(chatID); err != nil {
+					logger.DebugCF("discord", "ChannelTyping error", map[string]interface{}{"chatID": chatID, "err": err})
+				}
+			}
+		}
+	}()
+}
+
+// stopTyping stops the typing indicator loop for the given chatID.
+func (c *DiscordChannel) stopTyping(chatID string) {
+	c.typingMu.Lock()
+	defer c.typingMu.Unlock()
+	if stop, ok := c.typingStop[chatID]; ok {
+		close(stop)
+		delete(c.typingStop, chatID)
+	}
 }
