@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // mockUserIDProvider is a minimal mock for testing
@@ -271,6 +272,8 @@ func TestMemoryAppendTool_CreateNew(t *testing.T) {
 	tmpDir := t.TempDir()
 	memoryDir := filepath.Join(tmpDir, "memory")
 	os.MkdirAll(memoryDir, 0755)
+	today := time.Now().Format("20060102")
+	month := today[:6]
 
 	cb := &mockUserIDProvider{userID: ""}
 	tool := NewMemoryAppendTool(tmpDir, cb)
@@ -287,15 +290,10 @@ func TestMemoryAppendTool_CreateNew(t *testing.T) {
 	}
 
 	// Verify daily note was created
-	// The file path includes current date, so we need to check the directory structure
-	monthDir := filepath.Join(memoryDir, "202602") // February 2026 (or current month)
+	monthDir := filepath.Join(memoryDir, month)
 	entries, err := os.ReadDir(monthDir)
 	if err != nil {
-		// Try different month directories
-		entries, err = os.ReadDir(filepath.Join(memoryDir, "202601"))
-		if err != nil {
-			t.Fatalf("Failed to read month directory: %v", err)
-		}
+		t.Fatalf("Failed to read month directory: %v", err)
 	}
 
 	if len(entries) == 0 {
@@ -303,7 +301,7 @@ func TestMemoryAppendTool_CreateNew(t *testing.T) {
 	}
 
 	// Read the created file
-	dailyFile := filepath.Join(monthDir, entries[0].Name())
+	dailyFile := filepath.Join(monthDir, today+".md")
 	data, err := os.ReadFile(dailyFile)
 	if err != nil {
 		t.Fatalf("Failed to read daily note: %v", err)
@@ -319,12 +317,15 @@ func TestMemoryAppendTool_CreateNew(t *testing.T) {
 func TestMemoryAppendTool_Append(t *testing.T) {
 	tmpDir := t.TempDir()
 	memoryDir := filepath.Join(tmpDir, "memory")
+	today := time.Now().Format("20060102")
+	month := today[:6]
+	todayHeader := time.Now().Format("2006-01-02")
 
 	// Create today's directory with existing note
-	monthDir := filepath.Join(memoryDir, "202602")
+	monthDir := filepath.Join(memoryDir, month)
 	os.MkdirAll(monthDir, 0755)
-	dailyFile := filepath.Join(monthDir, "20260220.md")
-	os.WriteFile(dailyFile, []byte("# 2026-02-20\n\nexisting note"), 0644)
+	dailyFile := filepath.Join(monthDir, today+".md")
+	os.WriteFile(dailyFile, []byte("# "+todayHeader+"\n\nexisting note"), 0644)
 
 	cb := &mockUserIDProvider{userID: ""}
 	tool := NewMemoryAppendTool(tmpDir, cb)
@@ -359,6 +360,8 @@ func TestMemoryAppendTool_Append(t *testing.T) {
 // TestMemoryAppendTool_PerUser verifies per-user daily notes
 func TestMemoryAppendTool_PerUser(t *testing.T) {
 	tmpDir := t.TempDir()
+	today := time.Now().Format("20060102")
+	month := today[:6]
 
 	cb1 := &mockUserIDProvider{userID: "user123"}
 	tool1 := NewMemoryAppendTool(tmpDir, cb1)
@@ -375,7 +378,7 @@ func TestMemoryAppendTool_PerUser(t *testing.T) {
 	}
 
 	// Verify user1's daily note exists
-	user1MonthDir := filepath.Join(tmpDir, "memory", "users", "user123", "202602")
+	user1MonthDir := filepath.Join(tmpDir, "memory", "users", "user123", month)
 	entries, err := os.ReadDir(user1MonthDir)
 	if err != nil {
 		t.Fatalf("Failed to read user1 month directory: %v", err)
@@ -384,9 +387,12 @@ func TestMemoryAppendTool_PerUser(t *testing.T) {
 	if len(entries) == 0 {
 		t.Errorf("Expected daily note file for user1")
 	}
+	if _, err := os.ReadFile(filepath.Join(user1MonthDir, today+".md")); err != nil {
+		t.Fatalf("Expected user1 daily note file %s.md: %v", today, err)
+	}
 
 	// Verify user2's directory does not exist
-	user2MonthDir := filepath.Join(tmpDir, "memory", "users", "user456", "202602")
+	user2MonthDir := filepath.Join(tmpDir, "memory", "users", "user456", month)
 	if _, err := os.ReadDir(user2MonthDir); err == nil {
 		t.Errorf("User2's daily note should not exist")
 	}

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strings"
@@ -13,7 +15,8 @@ import (
 )
 
 const (
-	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	userAgent            = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	maxWebFetchReadBytes = 2 * 1024 * 1024
 )
 
 type SearchProvider interface {
@@ -339,7 +342,8 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 }
 
 type WebFetchTool struct {
-	maxChars int
+	maxChars             int
+	allowPrivateNetworks bool
 }
 
 func NewWebFetchTool(maxChars int) *WebFetchTool {
@@ -349,6 +353,10 @@ func NewWebFetchTool(maxChars int) *WebFetchTool {
 	return &WebFetchTool{
 		maxChars: maxChars,
 	}
+}
+
+func (t *WebFetchTool) SetAllowPrivateNetworks(allow bool) {
+	t.allowPrivateNetworks = allow
 }
 
 func (t *WebFetchTool) Name() string {
@@ -395,6 +403,9 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 	if parsedURL.Host == "" {
 		return ErrorResult("missing domain in URL")
 	}
+	if err := validateFetchTarget(ctx, parsedURL, t.allowPrivateNetworks); err != nil {
+		return ErrorResult(fmt.Sprintf("URL blocked: %v", err))
+	}
 
 	maxChars := t.maxChars
 	if mc, ok := args["maxChars"].(float64); ok {
@@ -422,6 +433,9 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 			if len(via) >= 5 {
 				return fmt.Errorf("stopped after 5 redirects")
 			}
+			if err := validateFetchTarget(ctx, req.URL, t.allowPrivateNetworks); err != nil {
+				return fmt.Errorf("redirect blocked: %w", err)
+			}
 			return nil
 		},
 	}
@@ -432,9 +446,15 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	limitedReader := io.LimitReader(resp.Body, maxWebFetchReadBytes+1)
+	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to read response: %v", err))
+	}
+	responseTruncated := false
+	if len(body) > maxWebFetchReadBytes {
+		body = body[:maxWebFetchReadBytes]
+		responseTruncated = true
 	}
 
 	contentType := resp.Header.Get("Content-Type")
@@ -464,6 +484,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 	if truncated {
 		text = text[:maxChars]
 	}
+	truncated = truncated || responseTruncated
 
 	result := map[string]interface{}{
 		"url":       urlStr,
@@ -505,4 +526,59 @@ func (t *WebFetchTool) extractText(htmlContent string) string {
 	}
 
 	return strings.Join(cleanLines, "\n")
+}
+
+func validateFetchTarget(ctx context.Context, target *url.URL, allowPrivate bool) error {
+	host := strings.TrimSpace(strings.ToLower(target.Hostname()))
+	if host == "" {
+		return fmt.Errorf("missing host")
+	}
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return fmt.Errorf("localhost is not allowed")
+	}
+
+	if ip, err := netip.ParseAddr(host); err == nil {
+		if !allowPrivate && isDisallowedFetchIP(ip) {
+			return fmt.Errorf("private or local address is not allowed")
+		}
+		return nil
+	}
+
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return fmt.Errorf("failed to resolve host")
+	}
+	if len(ips) == 0 {
+		return fmt.Errorf("host has no IP addresses")
+	}
+	if allowPrivate {
+		return nil
+	}
+	for _, ip := range ips {
+		addr, ok := netip.AddrFromSlice(ip.IP)
+		if !ok {
+			continue
+		}
+		if isDisallowedFetchIP(addr) {
+			return fmt.Errorf("private or local address is not allowed")
+		}
+	}
+	return nil
+}
+
+func isDisallowedFetchIP(ip netip.Addr) bool {
+	if !ip.IsValid() {
+		return true
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	// Metadata service endpoints.
+	if ip.Is4() {
+		v4 := ip.As4()
+		if v4[0] == 169 && v4[1] == 254 && v4[2] == 169 && v4[3] == 254 {
+			return true
+		}
+	}
+	return false
 }

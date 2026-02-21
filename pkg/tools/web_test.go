@@ -9,6 +9,12 @@ import (
 	"testing"
 )
 
+func newWebFetchToolForTest(maxChars int) *WebFetchTool {
+	tool := NewWebFetchTool(maxChars)
+	tool.SetAllowPrivateNetworks(true)
+	return tool
+}
+
 // TestWebTool_WebFetch_Success verifies successful URL fetching
 func TestWebTool_WebFetch_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +24,7 @@ func TestWebTool_WebFetch_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tool := NewWebFetchTool(50000)
+	tool := newWebFetchToolForTest(50000)
 	ctx := context.Background()
 	args := map[string]interface{}{
 		"url": server.URL,
@@ -54,7 +60,7 @@ func TestWebTool_WebFetch_JSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tool := NewWebFetchTool(50000)
+	tool := newWebFetchToolForTest(50000)
 	ctx := context.Background()
 	args := map[string]interface{}{
 		"url": server.URL,
@@ -145,7 +151,7 @@ func TestWebTool_WebFetch_Truncation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tool := NewWebFetchTool(1000) // Limit to 1000 chars
+	tool := newWebFetchToolForTest(1000) // Limit to 1000 chars
 	ctx := context.Background()
 	args := map[string]interface{}{
 		"url": server.URL,
@@ -210,7 +216,7 @@ func TestWebTool_WebFetch_HTMLExtraction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tool := NewWebFetchTool(50000)
+	tool := newWebFetchToolForTest(50000)
 	ctx := context.Background()
 	args := map[string]interface{}{
 		"url": server.URL,
@@ -252,5 +258,21 @@ func TestWebTool_WebFetch_MissingDomain(t *testing.T) {
 	// Should mention missing domain
 	if !strings.Contains(result.ForLLM, "domain") && !strings.Contains(result.ForUser, "domain") {
 		t.Errorf("Expected domain error message, got ForLLM: %s", result.ForLLM)
+	}
+}
+
+func TestWebTool_WebFetch_BlocksPrivateAddress(t *testing.T) {
+	tool := NewWebFetchTool(50000)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"url": "http://127.0.0.1:8080",
+	}
+
+	result := tool.Execute(ctx, args)
+	if !result.IsError {
+		t.Fatalf("expected private address to be blocked")
+	}
+	if !strings.Contains(strings.ToLower(result.ForLLM), "blocked") {
+		t.Fatalf("expected blocked message, got: %s", result.ForLLM)
 	}
 }

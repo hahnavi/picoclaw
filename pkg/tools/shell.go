@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,34 @@ type ExecTool struct {
 	denyPatterns        []*regexp.Regexp
 	allowPatterns       []*regexp.Regexp
 	restrictToWorkspace bool
+}
+
+type limitedBuffer struct {
+	buf       bytes.Buffer
+	maxBytes  int
+	truncated bool
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	if b.maxBytes <= 0 {
+		b.truncated = true
+		return len(p), nil
+	}
+	remaining := b.maxBytes - b.buf.Len()
+	if remaining <= 0 {
+		b.truncated = true
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		_, _ = b.buf.Write(p[:remaining])
+		b.truncated = true
+		return len(p), nil
+	}
+	return b.buf.Write(p)
+}
+
+func (b *limitedBuffer) String() string {
+	return b.buf.String()
 }
 
 func NewExecTool(workingDir string, restrict bool) *ExecTool {
@@ -90,6 +119,21 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) *To
 		return ErrorResult(guardError)
 	}
 
+	if t.restrictToWorkspace {
+		absWorkspace, err := filepath.Abs(t.workingDir)
+		if err != nil {
+			return ErrorResult("Command blocked by safety guard (invalid workspace)")
+		}
+		absCwd, err := filepath.Abs(cwd)
+		if err != nil {
+			return ErrorResult("Command blocked by safety guard (invalid working dir)")
+		}
+		rel, err := filepath.Rel(absWorkspace, absCwd)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return ErrorResult("Command blocked by safety guard (working dir outside workspace)")
+		}
+	}
+
 	cmdCtx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
 
@@ -105,9 +149,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) *To
 
 	prepareCommandForTermination(cmd)
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	const maxCapturedOutputBytes = 1024 * 1024
+	stdout := &limitedBuffer{maxBytes: maxCapturedOutputBytes}
+	stderr := &limitedBuffer{maxBytes: maxCapturedOutputBytes}
+	cmd.Stdout = io.Writer(stdout)
+	cmd.Stderr = io.Writer(stderr)
 
 	if err := cmd.Start(); err != nil {
 		return ErrorResult(fmt.Sprintf("failed to start command: %v", err))
@@ -134,8 +180,11 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) *To
 	}
 
 	output := stdout.String()
-	if stderr.Len() > 0 {
+	if stderr.buf.Len() > 0 {
 		output += "\nSTDERR:\n" + stderr.String()
+	}
+	if stdout.truncated || stderr.truncated {
+		output += "\n(output truncated: exceeded capture limit)"
 	}
 
 	if err != nil {
@@ -201,10 +250,13 @@ func (t *ExecTool) guardCommand(command, cwd string) string {
 		if strings.Contains(cmd, "..\\") || strings.Contains(cmd, "../") {
 			return "Command blocked by safety guard (path traversal detected)"
 		}
+		if regexp.MustCompile(`(^|[;|&]\s*|\s)(cd|pushd|popd)\s+`).MatchString(lower) {
+			return "Command blocked by safety guard (directory-changing commands are disabled)"
+		}
 
 		cwdPath, err := filepath.Abs(cwd)
 		if err != nil {
-			return ""
+			return "Command blocked by safety guard (invalid working dir)"
 		}
 
 		pathPattern := regexp.MustCompile(`[A-Za-z]:\\[^\\\"']+|/[^\s\"']+`)
