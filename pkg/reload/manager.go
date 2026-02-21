@@ -146,9 +146,9 @@ func (rm *ReloadManager) reloadConfig() ReloadResult {
 	rm.config = newConfig
 	rm.mu.Unlock()
 
-	// Reload tools if tool config changed
+	// Reload tools if tool config or memory config changed
 	for _, field := range changedFields {
-		if field == "tools.web" {
+		if field == "tools.web" || field == "agents.defaults.additional_memory_dir" {
 			if err := rm.reloadTools(); err != nil {
 				logger.WarnC("reload", fmt.Sprintf("Failed to reload tools: %v", err))
 			}

@@ -70,17 +70,18 @@ type ContextPruningConfig struct {
 }
 
 type AgentDefaults struct {
-	Workspace              string                 `json:"workspace" env:"PICOCLAW_AGENTS_DEFAULTS_WORKSPACE"`
-	RestrictToWorkspace    bool                   `json:"restrict_to_workspace" env:"PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
-	Provider               string                 `json:"provider" env:"PICOCLAW_AGENTS_DEFAULTS_PROVIDER"`
-	Model                  string                 `json:"model" env:"PICOCLAW_AGENTS_DEFAULTS_MODEL"`
-	MaxTokens              int                    `json:"max_tokens" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS"`
-	Temperature            float64                `json:"temperature" env:"PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE"`
-	MaxToolIterations      int                    `json:"max_tool_iterations" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
-	BootstrapMaxChars      int                    `json:"bootstrap_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_MAX_CHARS"`
-	BootstrapTotalMaxChars int                    `json:"bootstrap_total_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_TOTAL_MAX_CHARS"`
-	ContextPruning         ContextPruningConfig   `json:"context_pruning"`
-	ContextWindow          int                    `json:"contextWindow" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_WINDOW"`
+	Workspace              string               `json:"workspace" env:"PICOCLAW_AGENTS_DEFAULTS_WORKSPACE"`
+	AdditionalMemoryDir    string               `json:"additional_memory_dir" env:"PICOCLAW_AGENTS_DEFAULTS_ADDITIONAL_MEMORY_DIR"`
+	RestrictToWorkspace    bool                 `json:"restrict_to_workspace" env:"PICOCLAW_AGENTS_DEFAULTS_RESTRICT_TO_WORKSPACE"`
+	Provider               string               `json:"provider" env:"PICOCLAW_AGENTS_DEFAULTS_PROVIDER"`
+	Model                  string               `json:"model" env:"PICOCLAW_AGENTS_DEFAULTS_MODEL"`
+	MaxTokens              int                  `json:"max_tokens" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOKENS"`
+	Temperature            float64              `json:"temperature" env:"PICOCLAW_AGENTS_DEFAULTS_TEMPERATURE"`
+	MaxToolIterations      int                  `json:"max_tool_iterations" env:"PICOCLAW_AGENTS_DEFAULTS_MAX_TOOL_ITERATIONS"`
+	BootstrapMaxChars      int                  `json:"bootstrap_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_MAX_CHARS"`
+	BootstrapTotalMaxChars int                  `json:"bootstrap_total_max_chars" env:"PICOCLAW_AGENTS_DEFAULTS_BOOTSTRAP_TOTAL_MAX_CHARS"`
+	ContextPruning         ContextPruningConfig `json:"context_pruning"`
+	ContextWindow          int                  `json:"contextWindow" env:"PICOCLAW_AGENTS_DEFAULTS_CONTEXT_WINDOW"`
 }
 
 type ChannelsConfig struct {
@@ -88,25 +89,25 @@ type ChannelsConfig struct {
 }
 
 type DiscordConfig struct {
-	Enabled        bool                         `json:"enabled" env:"PICOCLAW_CHANNELS_DISCORD_ENABLED"`
-	Token          string                       `json:"token" env:"PICOCLAW_CHANNELS_DISCORD_TOKEN"`
-	AllowFrom      FlexibleStringSlice          `json:"allow_from" env:"PICOCLAW_CHANNELS_DISCORD_ALLOW_FROM"`
-	RequireMention bool                         `json:"require_mention" env:"PICOCLAW_CHANNELS_DISCORD_REQUIRE_MENTION"`
-	ReplyToMode    string                       `json:"reply_to_mode" env:"PICOCLAW_CHANNELS_DISCORD_REPLY_TO_MODE"` // "off", "first", "all"
-	DMPolicy       string                       `json:"dm_policy" env:"PICOCLAW_CHANNELS_DISCORD_DM_POLICY"`       // "open", "allowlist", "disabled"
+	Enabled        bool                          `json:"enabled" env:"PICOCLAW_CHANNELS_DISCORD_ENABLED"`
+	Token          string                        `json:"token" env:"PICOCLAW_CHANNELS_DISCORD_TOKEN"`
+	AllowFrom      FlexibleStringSlice           `json:"allow_from" env:"PICOCLAW_CHANNELS_DISCORD_ALLOW_FROM"`
+	RequireMention bool                          `json:"require_mention" env:"PICOCLAW_CHANNELS_DISCORD_REQUIRE_MENTION"`
+	ReplyToMode    string                        `json:"reply_to_mode" env:"PICOCLAW_CHANNELS_DISCORD_REPLY_TO_MODE"` // "off", "first", "all"
+	DMPolicy       string                        `json:"dm_policy" env:"PICOCLAW_CHANNELS_DISCORD_DM_POLICY"`         // "open", "allowlist", "disabled"
 	Guilds         map[string]DiscordGuildConfig `json:"guilds"`
 }
 
 type DiscordGuildConfig struct {
-	RequireMention bool                           `json:"require_mention"`
+	RequireMention bool                            `json:"require_mention"`
 	Channels       map[string]DiscordChannelConfig `json:"channels"`
 }
 
 type DiscordChannelConfig struct {
-	Allow         bool     `json:"allow"`
-	RequireMention bool    `json:"require_mention"`
-	Users         []string `json:"users"`
-	Roles         []string `json:"roles"`
+	Allow          bool     `json:"allow"`
+	RequireMention bool     `json:"require_mention"`
+	Users          []string `json:"users"`
+	Roles          []string `json:"roles"`
 }
 
 type HeartbeatConfig struct {
@@ -184,6 +185,7 @@ func DefaultConfig() *Config {
 		Agents: AgentsConfig{
 			Defaults: AgentDefaults{
 				Workspace:              GetDefaultWorkspace(),
+				AdditionalMemoryDir:    "",
 				RestrictToWorkspace:    true,
 				Provider:               "",
 				Model:                  "glm-4.7",
@@ -306,6 +308,25 @@ func (c *Config) WorkspacePath() string {
 	return expandHome(c.Agents.Defaults.Workspace)
 }
 
+// AdditionalMemoryPath returns the resolved optional additional memory directory path.
+// Empty means no additional memory directory is configured.
+// Relative paths are resolved against the workspace path.
+func (c *Config) AdditionalMemoryPath() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	additional := expandHome(c.Agents.Defaults.AdditionalMemoryDir)
+	if additional == "" {
+		return ""
+	}
+	if filepath.IsAbs(additional) {
+		return filepath.Clean(additional)
+	}
+
+	workspace := expandHome(c.Agents.Defaults.Workspace)
+	return filepath.Clean(filepath.Join(workspace, additional))
+}
+
 func (c *Config) GetAPIKey() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -388,6 +409,9 @@ func (c *Config) CompareHotReloadable(other *Config) []string {
 	}
 	if c.Agents.Defaults.BootstrapTotalMaxChars != other.Agents.Defaults.BootstrapTotalMaxChars {
 		changed = append(changed, "agents.defaults.bootstrap_total_max_chars")
+	}
+	if c.Agents.Defaults.AdditionalMemoryDir != other.Agents.Defaults.AdditionalMemoryDir {
+		changed = append(changed, "agents.defaults.additional_memory_dir")
 	}
 
 	// Compare tools config (web search providers)

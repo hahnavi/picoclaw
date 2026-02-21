@@ -345,6 +345,27 @@ PicoClaw stores data in your configured workspace (default: `~/.picoclaw/workspa
 └── USER.md           # User preferences
 ```
 
+### Additional Memory Directory
+
+The `additional_memory_dir` configuration allows merging an external `MEMORY.md` file with the primary workspace memory. This is useful for sharing system-wide knowledge across multiple workspaces or maintaining a centralized knowledge base.
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "workspace": "~/.picoclaw/workspace",
+      "additional_memory_dir": "/path/to/shared/memory"
+    }
+  }
+}
+```
+
+**Behavior:**
+- **All modes**: Both CLI and Discord users receive additional shared memory merged with their primary memory
+- **Hot reload supported**: Changes are detected automatically in gateway mode
+- **Path resolution**: Supports absolute paths, relative paths (from workspace), and tilde expansion
+- **Read-only**: Additional memory is only merged when reading; writes only affect primary memory
+
 ### 🔒 Security Sandbox
 
 PicoClaw runs in a sandboxed environment by default. The agent can only access files and execute commands within the configured workspace.

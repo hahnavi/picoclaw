@@ -28,7 +28,7 @@ func (m *mockUserIDProvider) GetCurrentUserID() string {
 func TestMemoryReadTool_NoMemory(t *testing.T) {
 	tmpDir := t.TempDir()
 	cb := &mockUserIDProvider{userID: ""}
-	tool := NewMemoryReadTool(tmpDir, cb)
+	tool := NewMemoryReadTool(tmpDir, cb, "")
 
 	ctx := context.Background()
 	result := tool.Execute(ctx, map[string]interface{}{})
@@ -59,7 +59,7 @@ func TestMemoryReadTool_WithMemory(t *testing.T) {
 	os.WriteFile(filepath.Join(monthDir, "20260220.md"), []byte(dailyNote), 0644)
 
 	cb := &mockUserIDProvider{userID: ""}
-	tool := NewMemoryReadTool(tmpDir, cb)
+	tool := NewMemoryReadTool(tmpDir, cb, "")
 
 	ctx := context.Background()
 	result := tool.Execute(ctx, map[string]interface{}{})
@@ -99,7 +99,7 @@ func TestMemoryReadTool_PerUser(t *testing.T) {
 
 	// Test user1
 	cb1 := &mockUserIDProvider{userID: "user123"}
-	tool1 := NewMemoryReadTool(tmpDir, cb1)
+	tool1 := NewMemoryReadTool(tmpDir, cb1, "")
 	ctx := context.Background()
 	result1 := tool1.Execute(ctx, map[string]interface{}{})
 
@@ -117,7 +117,7 @@ func TestMemoryReadTool_PerUser(t *testing.T) {
 
 	// Test user2
 	cb2 := &mockUserIDProvider{userID: "user456"}
-	tool2 := NewMemoryReadTool(tmpDir, cb2)
+	tool2 := NewMemoryReadTool(tmpDir, cb2, "")
 	result2 := tool2.Execute(ctx, map[string]interface{}{})
 
 	if result2.IsError {
@@ -432,7 +432,7 @@ func TestMemoryTool_CLI_Mode(t *testing.T) {
 
 	// Test read
 	cb := &mockUserIDProvider{userID: ""}
-	readTool := NewMemoryReadTool(tmpDir, cb)
+	readTool := NewMemoryReadTool(tmpDir, cb, "")
 	ctx := context.Background()
 	result := readTool.Execute(ctx, map[string]interface{}{})
 
@@ -472,5 +472,127 @@ func TestMemoryTool_CLI_Mode(t *testing.T) {
 
 	if string(data) != "new shared content" {
 		t.Errorf("Expected 'new shared content', got: %s", string(data))
+	}
+}
+
+func TestMemoryReadTool_WithAdditionalMemory_CLIMode(t *testing.T) {
+	tmpDir := t.TempDir()
+	primaryDir := filepath.Join(tmpDir, "memory")
+	extraDir := filepath.Join(tmpDir, "extra-memory")
+	if err := os.MkdirAll(primaryDir, 0755); err != nil {
+		t.Fatalf("Failed to create primary dir: %v", err)
+	}
+	if err := os.MkdirAll(extraDir, 0755); err != nil {
+		t.Fatalf("Failed to create extra dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(primaryDir, "MEMORY.md"), []byte("primary memory"), 0644); err != nil {
+		t.Fatalf("Failed to write primary memory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(extraDir, "MEMORY.md"), []byte("extra memory"), 0644); err != nil {
+		t.Fatalf("Failed to write extra memory: %v", err)
+	}
+
+	cb := &mockUserIDProvider{userID: ""}
+	tool := NewMemoryReadTool(tmpDir, cb, extraDir)
+	result := tool.Execute(context.Background(), map[string]interface{}{})
+
+	if result.IsError {
+		t.Fatalf("Expected success, got error: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForLLM, "primary memory") {
+		t.Errorf("Expected primary memory content, got: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForLLM, "extra memory") {
+		t.Errorf("Expected extra memory content, got: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForLLM, "Additional Long-term Memory") {
+		t.Errorf("Expected additional memory section, got: %s", result.ForLLM)
+	}
+}
+
+func TestMemoryReadTool_WithAdditionalMemory_DiscordUser(t *testing.T) {
+	tmpDir := t.TempDir()
+	userID := "user123"
+	userDir := filepath.Join(tmpDir, "memory", "users", userID)
+	extraDir := filepath.Join(tmpDir, "extra-memory")
+	if err := os.MkdirAll(userDir, 0755); err != nil {
+		t.Fatalf("Failed to create user dir: %v", err)
+	}
+	if err := os.MkdirAll(extraDir, 0755); err != nil {
+		t.Fatalf("Failed to create extra dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(userDir, "MEMORY.md"), []byte("discord user memory"), 0644); err != nil {
+		t.Fatalf("Failed to write user memory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(extraDir, "MEMORY.md"), []byte("shared additional memory"), 0644); err != nil {
+		t.Fatalf("Failed to write extra memory: %v", err)
+	}
+
+	cb := &mockUserIDProvider{userID: userID}
+	tool := NewMemoryReadTool(tmpDir, cb, extraDir)
+	result := tool.Execute(context.Background(), map[string]interface{}{})
+
+	if result.IsError {
+		t.Fatalf("Expected success, got error: %s", result.ForLLM)
+	}
+	// Should contain per-user memory
+	if !strings.Contains(result.ForLLM, "discord user memory") {
+		t.Errorf("Expected per-user memory content, got: %s", result.ForLLM)
+	}
+	// Should also contain additional shared memory
+	if !strings.Contains(result.ForLLM, "shared additional memory") {
+		t.Errorf("Expected additional shared memory for Discord user, got: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForLLM, "Additional Long-term Memory") {
+		t.Errorf("Expected additional memory section header, got: %s", result.ForLLM)
+	}
+}
+
+func TestMemoryReadTool_MissingAdditionalMemory_DoesNotFail(t *testing.T) {
+	tmpDir := t.TempDir()
+	primaryDir := filepath.Join(tmpDir, "memory")
+	if err := os.MkdirAll(primaryDir, 0755); err != nil {
+		t.Fatalf("Failed to create primary dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(primaryDir, "MEMORY.md"), []byte("primary memory"), 0644); err != nil {
+		t.Fatalf("Failed to write primary memory: %v", err)
+	}
+
+	cb := &mockUserIDProvider{userID: ""}
+	tool := NewMemoryReadTool(tmpDir, cb, filepath.Join(tmpDir, "missing-extra"))
+	result := tool.Execute(context.Background(), map[string]interface{}{})
+
+	if result.IsError {
+		t.Fatalf("Expected success, got error: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForLLM, "primary memory") {
+		t.Errorf("Expected primary memory content, got: %s", result.ForLLM)
+	}
+}
+
+func TestMemoryReadTool_SameAdditionalPath_NoDuplicateSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	primaryDir := filepath.Join(tmpDir, "memory")
+	if err := os.MkdirAll(primaryDir, 0755); err != nil {
+		t.Fatalf("Failed to create primary dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(primaryDir, "MEMORY.md"), []byte("single memory"), 0644); err != nil {
+		t.Fatalf("Failed to write memory: %v", err)
+	}
+
+	cb := &mockUserIDProvider{userID: ""}
+	tool := NewMemoryReadTool(tmpDir, cb, primaryDir)
+	result := tool.Execute(context.Background(), map[string]interface{}{})
+
+	if result.IsError {
+		t.Fatalf("Expected success, got error: %s", result.ForLLM)
+	}
+	if count := strings.Count(result.ForLLM, "## Long-term Memory"); count != 1 {
+		t.Errorf("Expected one Long-term Memory section, got %d in: %s", count, result.ForLLM)
+	}
+	if strings.Contains(result.ForLLM, "## Additional Long-term Memory") {
+		t.Errorf("Did not expect additional section when paths are the same, got: %s", result.ForLLM)
 	}
 }

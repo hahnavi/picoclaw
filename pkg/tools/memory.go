@@ -24,16 +24,19 @@ type UserIDProvider interface {
 // MemoryReadTool reads the current user's memory (long-term memory and recent daily notes).
 // For Discord users, this reads from workspace/memory/users/<USER_ID>/MEMORY.md
 // For CLI mode, this reads from workspace/memory/MEMORY.md
+// For all modes, additional memory from additional_memory_dir is merged if configured.
 type MemoryReadTool struct {
 	userIDProvider UserIDProvider
 	workspace      string
+	additionalDir  string
 }
 
 // NewMemoryReadTool creates a new memory_read tool.
-func NewMemoryReadTool(workspace string, userIDProvider UserIDProvider) *MemoryReadTool {
+func NewMemoryReadTool(workspace string, userIDProvider UserIDProvider, additionalMemoryDir string) *MemoryReadTool {
 	return &MemoryReadTool{
 		userIDProvider: userIDProvider,
 		workspace:      workspace,
+		additionalDir:  additionalMemoryDir,
 	}
 }
 
@@ -42,7 +45,7 @@ func (t *MemoryReadTool) Name() string {
 }
 
 func (t *MemoryReadTool) Description() string {
-	return "Read the current user's memory (long-term memory and recent daily notes). For Discord users, this reads per-user memory. For CLI mode, this reads shared memory."
+	return "Read the current user's memory (long-term memory and recent daily notes). For Discord users, this reads per-user memory. For all modes, this may include configured additional long-term memory."
 }
 
 func (t *MemoryReadTool) Parameters() map[string]interface{} {
@@ -72,6 +75,14 @@ func (t *MemoryReadTool) Execute(ctx context.Context, args map[string]interface{
 		parts = append(parts, "## Long-term Memory\n\n"+string(data))
 	}
 
+	// Merge optional additional long-term memory (applies to all users).
+	if t.additionalDir != "" && !samePath(memoryDir, t.additionalDir) {
+		additionalMemoryFile := filepath.Join(t.additionalDir, "MEMORY.md")
+		if data, err := os.ReadFile(additionalMemoryFile); err == nil && strings.TrimSpace(string(data)) != "" {
+			parts = append(parts, "## Additional Long-term Memory\n\n"+string(data))
+		}
+	}
+
 	// Read recent daily notes (last 3 days)
 	var notes []string
 	for i := 0; i < 3; i++ {
@@ -94,6 +105,15 @@ func (t *MemoryReadTool) Execute(ctx context.Context, args map[string]interface{
 	}
 
 	return NewToolResult("# Memory\n\n" + strings.Join(parts, "\n\n---\n\n"))
+}
+
+func samePath(a, b string) bool {
+	aa, errA := filepath.Abs(a)
+	bb, errB := filepath.Abs(b)
+	if errA != nil || errB != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return filepath.Clean(aa) == filepath.Clean(bb)
 }
 
 // MemoryWriteTool writes content to the current user's long-term memory file (MEMORY.md).

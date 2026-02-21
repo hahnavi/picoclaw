@@ -126,22 +126,22 @@ func GetDefaultContextWindow(model string) int {
 }
 
 type AgentLoop struct {
-	bus            *bus.MessageBus
-	provider       providers.LLMProvider
-	workspace      string
-	model          string
-	contextWindow  int // Maximum context window size in tokens
-	maxIterations  int
-	sessions       *session.SessionManager
-	state          *state.Manager
-	contextBuilder *ContextBuilder
-	tools          *tools.ToolRegistry
-	running        atomic.Bool
-	summarizing    sync.Map // Tracks which sessions are currently being summarized
-	channelManager *channels.Manager
+	bus             *bus.MessageBus
+	provider        providers.LLMProvider
+	workspace       string
+	model           string
+	contextWindow   int // Maximum context window size in tokens
+	maxIterations   int
+	sessions        *session.SessionManager
+	state           *state.Manager
+	contextBuilder  *ContextBuilder
+	tools           *tools.ToolRegistry
+	running         atomic.Bool
+	summarizing     sync.Map // Tracks which sessions are currently being summarized
+	channelManager  *channels.Manager
 	bootstrapConfig BootstrapConfig // Bootstrap truncation config
-	pruningConfig    PruningConfig    // Context pruning config
-	mu               sync.RWMutex     // Protects reload operations
+	pruningConfig   PruningConfig   // Context pruning config
+	mu              sync.RWMutex    // Protects reload operations
 }
 
 // processOptions configures how a message is processed
@@ -205,7 +205,7 @@ func createToolRegistry(workspace string, restrict bool, cfg *config.Config, msg
 
 	// Memory tools - only if contextBuilder is provided
 	if contextBuilder != nil {
-		registry.Register(tools.NewMemoryReadTool(workspace, contextBuilder))
+		registry.Register(tools.NewMemoryReadTool(workspace, contextBuilder, cfg.AdditionalMemoryPath()))
 		registry.Register(tools.NewMemoryWriteTool(workspace, contextBuilder))
 		registry.Register(tools.NewMemoryAppendTool(workspace, contextBuilder))
 	}
@@ -562,10 +562,10 @@ func (al *AgentLoop) runAgentLoop(ctx context.Context, opts processOptions) (str
 			if stats.MessagesRemoved > 0 || stats.ToolResultsRemoved > 0 {
 				logger.InfoCF("agent", "Applied context pruning",
 					map[string]interface{}{
-						"session_key":           opts.SessionKey,
-						"messages_removed":      stats.MessagesRemoved,
-						"tool_results_removed":  stats.ToolResultsRemoved,
-						"chars_saved":           stats.CharsSaved,
+						"session_key":          opts.SessionKey,
+						"messages_removed":     stats.MessagesRemoved,
+						"tool_results_removed": stats.ToolResultsRemoved,
+						"chars_saved":          stats.CharsSaved,
 					})
 			}
 			history = prunedHistory
@@ -1320,11 +1320,11 @@ func (al *AgentLoop) UpdateBootstrapConfig(config BootstrapConfig) error {
 func (al *AgentLoop) UpdatePruningConfig(config PruningConfig) error {
 	al.pruningConfig = config
 	logger.InfoCF("agent", "Pruning config updated", map[string]interface{}{
-		"mode":                  config.Mode,
-		"ttl_minutes":           config.TTL.Minutes(),
-		"keep_last_assistants":  config.KeepLastAssistants,
-		"soft_trim_ratio":       config.SoftTrimRatio,
-		"hard_clear_ratio":      config.HardClearRatio,
+		"mode":                    config.Mode,
+		"ttl_minutes":             config.TTL.Minutes(),
+		"keep_last_assistants":    config.KeepLastAssistants,
+		"soft_trim_ratio":         config.SoftTrimRatio,
+		"hard_clear_ratio":        config.HardClearRatio,
 		"min_prunable_tool_chars": config.MinPrunableToolChars,
 	})
 	return nil

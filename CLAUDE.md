@@ -281,7 +281,7 @@ For full multi-channel support, consider using the main branch.
 Config file location: `~/.picoclaw/config.json`
 
 Key configuration sections:
-- `agents.defaults`: Model, workspace, max_tokens, temperature, max_tool_iterations, bootstrap_max_chars, bootstrap_total_max_chars, context_pruning (mode, ttl_minutes, keep_last_assistants, soft_trim_ratio, hard_clear_ratio, min_prunable_tool_chars)
+- `agents.defaults`: Model, workspace, additional_memory_dir, max_tokens, temperature, max_tool_iterations, bootstrap_max_chars, bootstrap_total_max_chars, context_pruning (mode, ttl_minutes, keep_last_assistants, soft_trim_ratio, hard_clear_ratio, min_prunable_tool_chars)
 - `channels`: Discord credentials and allow lists
 - `providers`: API keys for OpenRouter, OpenAI, Gemini, Zhipu, Groq, VLLM, Nvidia, Ollama, Moonshot, ShengSuanYun, DeepSeek, GitHub Copilot, Codex
 - `tools.web`: Brave and DuckDuckGo search configuration
@@ -307,6 +307,45 @@ Environment variables override JSON config using the pattern `PICOCLAW_<SECTION>
 ├── SOUL.md            # Agent soul
 ├── TOOLS.md           # Tool descriptions (optional override)
 └── USER.md            # User preferences
+```
+
+### Additional Memory Directory
+
+The `agents.defaults.additional_memory_dir` configuration allows merging an external `MEMORY.md` file with the primary workspace memory. This is useful for:
+
+- Sharing system-wide knowledge across multiple workspaces
+- Maintaining a centralized knowledge base
+- Separating project-specific memory from shared reference material
+- Providing Discord users with shared knowledge in addition to their personal memory
+
+**Configuration:**
+```json
+{
+  "agents": {
+    "defaults": {
+      "additional_memory_dir": "/path/to/shared/memory"
+    }
+  }
+}
+```
+
+**Path resolution:**
+- **Absolute paths**: Used as-is (e.g., `/var/lib/picoclaw-memory`)
+- **Relative paths**: Resolved against workspace (e.g., `../shared-memory` → `workspace/../shared-memory`)
+- **Tilde expansion**: `~` expands to user's home directory (e.g., `~/picoclaw-memory`)
+
+**Behavior:**
+- **All modes**: Both CLI and Discord users receive the additional shared memory merged with their primary memory
+- **CLI mode**: Reads from `workspace/memory/MEMORY.md` + additional memory
+- **Discord mode**: Reads from `workspace/memory/users/<USER_ID>/MEMORY.md` + additional memory
+- **Graceful degradation**: If the additional directory doesn't exist, the agent continues with primary memory only
+- **Hot reload supported**: Changes to `additional_memory_dir` are detected and tools are recreated automatically
+- **No duplication**: If the additional path resolves to the same location as primary memory, it's not loaded twice
+- **Read-only**: The additional memory is only merged when reading. Write/append operations only affect primary workspace memory (shared for CLI, per-user for Discord)
+
+**Environment variable:**
+```bash
+export PICOCLAW_AGENTS_DEFAULTS_ADDITIONAL_MEMORY_DIR="/path/to/shared/memory"
 ```
 
 ## Creating New Tools
@@ -374,7 +413,7 @@ func (c *MyChannel) Stop() error { ... }
 - **Device monitoring**: On Linux, the devices service can monitor USB hotplug events when `devices.monitor_usb` is enabled in config. Events are published to the message bus and can trigger agent actions.
 - **Structured logging**: The logger package outputs structured JSON logs with configurable log levels (DEBUG, INFO, WARN, ERROR, FATAL). All logs include timestamp, level, component, and optional fields.
 - **AGENTS.md symlink**: The root `AGENTS.md` is symlinked to `CLAUDE.md`, which means agent behavior guidance is loaded from the same file that guides Claude Code development.
-- **Per-User Memory**: Discord users have isolated memory directories at `workspace/memory/users/<USER_ID>/`, while CLI mode uses shared `workspace/memory/`. The memory tools (`memory_read`, `memory_write`, `memory_append`) automatically route to the correct location based on the current user context.
+- **Per-User Memory**: Discord users have isolated memory directories at `workspace/memory/users/<USER_ID>/`, while CLI mode uses shared `workspace/memory/`. The memory tools (`memory_read`, `memory_write`, `memory_append`) automatically route to the correct location based on the current user context. All users can additionally receive shared knowledge from `additional_memory_dir` when configured (read-only merge on read operations).
 
 ## Embedded Workspace
 

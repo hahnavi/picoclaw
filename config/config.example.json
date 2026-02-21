@@ -2,6 +2,7 @@
   "agents": {
     "defaults": {
       "workspace": "~/.picoclaw/workspace",
+      "additional_memory_dir": "",
       "restrict_to_workspace": true,
       "provider": "openrouter",
       "model": "glm-4.7",
